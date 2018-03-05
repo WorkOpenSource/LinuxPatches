@@ -1,0 +1,1393 @@
+diff --git a/arch/arm/boot/dts/work92105.350.00B.dtsi b/arch/arm/boot/dts/work92105.350.00B.dtsi
+new file mode 100644
+index 000000000000..c44404cb39ad
+--- /dev/null
++++ b/arch/arm/boot/dts/work92105.350.00B.dtsi
+@@ -0,0 +1,211 @@
++/*
++ * WORK 92105.350.00B - Frontpanel board (Rev B)
++ *
++ * 6 LEDs, LCD Display (2x40, contrast), 6 buttons (no hw-clock)
++ *
++ * Copyright 2012 Roland Stigge <stigge@antcom.de>
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++/ {
++	ahb {
++		apb {
++			i2c1: i2c@400A0000 {
++				/* Frontpanel LEDs */
++				gpio1: io@21 {
++					compatible = "nxp,pca9554";
++					reg = <0x21>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Frontpanel LEDs */
++				gpio2: io@22 {
++					compatible = "nxp,pca9554";
++					reg = <0x22>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Frontpanel Keys */
++				gpio3: io@24 {
++					compatible = "nxp,pca9554";
++					reg = <0x24>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Display Contrast */
++				dac@2c {
++					compatible = "maxim,max518";
++					reg = <0x2c>;
++				};
++
++				temp@49 {
++					compatible = "dallas,ds620";
++					reg = <0x49>;
++				};
++			};
++
++			ssp0: ssp@20084000 {
++				#address-cells = <1>;
++				#size-cells = <0>;
++				num-cs = <2>;
++				cs-gpios = <&gpio 5 15 0>,
++				           <&gpio 3 5 0>;
++				/* GPIO_5 is CD at the same time, but unused for now */
++
++				gpiomax: gpio@0 {
++					pl022,interface = <0>;
++					pl022,com-mode = <0>;
++					pl022,rx-level-trig = <1>;
++					pl022,tx-level-trig = <1>;
++					pl022,ctrl-len = <7>;
++					pl022,wait-state = <0>;
++					pl022,duplex = <0>;
++
++					compatible = "max7301";
++					spi-max-frequency = <4000000>;
++					reg = <0>;
++					
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Optinal SD-Card */
++				mmc: mmc-slot@0 {
++					pl022,interface = <0>;
++					pl022,com-mode = <0>;
++					pl022,rx-level-trig = <1>;
++					pl022,tx-level-trig = <1>;
++					pl022,ctrl-len = <7>;
++					pl022,wait-state = <0>;
++					pl022,duplex = <1>;
++
++					compatible = "mmc-spi-slot";
++					reg = <1>;
++					voltage-ranges = <3300 3300>;
++					spi-max-frequency = <5000000>;
++				};
++			};
++
++			ssp1: ssp@2008c000 {
++				#address-cells = <1>;
++				#size-cells = <0>;
++				num-cs = <1>;
++				cs-gpios = <&gpio 3 4 0>;
++/* activate for additional CS on external spi  
++				num-cs = <3>;
++				cs-gpios = <&gpio 3 4 0>,
++				           <&gpio 5 18 0>,
++				           <&gpio 5 13 0>;
++*/
++				spidev@0 {
++					compatible = "spi,spidev";
++					spi-max-frequency = <4000000>;
++					reg = <0>;
++				};
++			};
++		};
++	};
++
++	display {
++		compatible = "work,disp";
++	};
++
++	keys {
++		compatible = "work,keys";
++	};
++	
++	leds {
++		compatible = "gpio-leds";
++
++		led-front-6-rt {
++			gpios = <&gpio1 2 0>;
++			default-state = "off";
++		};
++
++		led-front-6-gn {
++			gpios = <&gpio1 3 0>;
++			default-state = "on";
++		};
++
++		led-front-5-rt {
++			gpios = <&gpio1 4 0>;
++			default-state = "off";
++		};
++
++		led-front-5-gn {
++			gpios = <&gpio1 5 0>;
++			default-state = "on";
++		};
++
++		led-front-4-rt {
++			gpios = <&gpio1 6 0>;
++			default-state = "off";
++		};
++
++		led-front-4-gn {
++			gpios = <&gpio1 7 0>;
++			default-state = "on";
++		};
++
++		led-front-3-rt {
++			gpios = <&gpio2 2 0>;
++			default-state = "off";
++		};
++
++		led-front-3-gn {
++			gpios = <&gpio2 3 0>;
++			default-state = "on";
++		};
++
++		led-front-2-rt {
++			gpios = <&gpio2 4 0>;
++			default-state = "off";
++		};
++
++		led-front-2-gn {
++			gpios = <&gpio2 5 0>;
++			default-state = "on";
++		};
++
++		led-front-1-rt {
++			gpios = <&gpio2 6 0>;
++			default-state = "off";
++		};
++
++		led-front-1-gn {
++			gpios = <&gpio2 7 0>;
++			default-state = "on";
++		};
++
++		led-back-gn0 {
++			gpios = <&gpiomax 0 1>;
++			/* blinking done by mainctl */
++			/* linux,default-trigger = "heartbeat"; */
++			default-state = "off";
++		};
++
++		led-back-gn1 {
++			gpios = <&gpiomax 1 1>;
++			default-state = "off";
++		};
++
++		led-back-ge {
++			gpios = <&gpiomax 2 1>;
++			default-state = "off";
++		};
++
++		led-back-rt {
++			gpios = <&gpiomax 3 1>;
++			default-state = "off";
++		};
++	};
++};
+diff --git a/arch/arm/boot/dts/work92105.352.00C.dtsi b/arch/arm/boot/dts/work92105.352.00C.dtsi
+new file mode 100644
+index 000000000000..bdad8b1ae834
+--- /dev/null
++++ b/arch/arm/boot/dts/work92105.352.00C.dtsi
+@@ -0,0 +1,29 @@
++/*
++ * WORK 92105.352.00C - Frontpanel board (Rev C)
++ *
++ * 6 LEDs, BCD switch
++ *
++ * Copyright 2014 Roland Stigge <stigge@antcom.de>
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++/ {
++	ahb {
++		apb {
++			i2c1: i2c@400A0000 {
++				gpio4: io@25 {
++					compatible = "nxp,pca9554";
++					reg = <0x25>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++			};
++		};
++	};
++};
+diff --git a/arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi b/arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi
+new file mode 100644
+index 000000000000..0f8f3c151a19
+--- /dev/null
++++ b/arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi
+@@ -0,0 +1,200 @@
++/*
++ * WORK 92105.350.00C - Frontpanel board (Rev C)
++ *
++ * 6 LEDs, LCD Display (2x40, contrast), 6 buttons, hw-clock, beeper
++ *
++ * Copyright 2017 WORK Microwave GmbH
++ *
++ */
++
++&board_soc {
++
++	i2c@3100 {
++
++		/* Frontpanel LEDs */
++		gpio21: gpio@21 {
++			compatible = "nxp,pca9554";
++			reg = <0x21>;
++			gpio-controller;
++			#gpio-cells = <2>;
++		};
++
++		/* Frontpanel LEDs */
++		gpio22: gpio@22 {
++			compatible = "nxp,pca9554";
++			reg = <0x22>;
++			gpio-controller;
++			#gpio-cells = <2>;
++		};
++
++		/* Frontpanel Keys */
++		gpio24: gpio@24 {
++			compatible = "nxp,pca9554";
++			reg = <0x24>;
++			gpio-controller;
++			#gpio-cells = <2>;
++		};
++
++		/* Display Contrast */
++		contrast_dac: dac@2c {
++			compatible = "maxim,max518";
++			reg = <0x2c>;
++		};
++
++		/* Frontpanel Temperature */
++		temp-sensor@49 {
++			compatible = "dallas,ds620";
++			reg = <0x49>;
++		};
++
++		/* Realtime Clock */
++		rtc@68 {
++			compatible = "dallas,ds1374";
++			reg = <0x68>;
++		};
++	};
++
++	display {
++		compatible = "work,disp";
++	};
++
++	frontpanel_keys {
++		compatible = "gpio-keys";
++		/*compatible = "gpio-keys-polled";
++		poll-interval = <100>;*/
++		#address-cells = <1>;
++		#size-cells = <0>;
++		autorepeat;
++		downkey {
++			gpios = <&gpio24 0 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <108>;		/* KEY_DOWN */
++		};
++		leftkey {
++			gpios = <&gpio24 1 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <105>;		/* KEY_LEFT */
++		};
++		rightkey {
++			gpios = <&gpio24 2 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <106>;		/* KEY_RIGHT */
++		};
++		upkey {
++			gpios = <&gpio24 3 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <103>;		/* KEY_UP */
++		};
++		enterkey {
++			gpios = <&gpio24 4 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <28>;		/* KEY_ENTER */
++		};
++		backspacekey {  /* labeled 'cancel' */
++			gpios = <&gpio24 5 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <14>;		/* KEY_BACKSPACE */
++		};
++		inskey {  /* labeled 'rx-on' */
++			gpios = <&gpio24 6 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <110>;		/* KEY_INSERT */
++		};
++		delkey {  /* labeled 'rx-off' */
++			gpios = <&gpio24 7 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <111>;		/* KEY_DELETE */
++		};
++	};
++
++	frontpanel_beeper {
++		compatible = "gpio-beeper";
++		gpios = <&gpiomax 18 0>;
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led-front-6-rt {
++			gpios = <&gpio21 2 0>;
++			default-state = "on";
++		};
++
++		led-front-6-gn {
++			gpios = <&gpio21 3 0>;
++			default-state = "off";
++		};
++
++		led-front-5-rt {
++			gpios = <&gpio21 4 0>;
++			default-state = "on";
++		};
++
++		led-front-5-gn {
++			gpios = <&gpio21 5 0>;
++			default-state = "off";
++		};
++
++		led-front-4-rt {
++			gpios = <&gpio21 6 0>;
++			default-state = "on";
++		};
++
++		led-front-4-gn {
++			gpios = <&gpio21 7 0>;
++			default-state = "off";
++		};
++
++		led-front-3-rt {
++			gpios = <&gpio22 2 0>;
++			default-state = "on";
++		};
++
++		led-front-3-gn {
++			gpios = <&gpio22 3 0>;
++			default-state = "off";
++		};
++
++		led-front-2-rt {
++			gpios = <&gpio22 4 0>;
++			default-state = "on";
++		};
++
++		led-front-2-gn {
++			gpios = <&gpio22 5 0>;
++			default-state = "off";
++		};
++
++		led-front-1-rt {
++			gpios = <&gpio22 6 0>;
++			default-state = "on";
++		};
++
++		led-front-1-gn {
++			gpios = <&gpio22 7 0>;
++			default-state = "off";
++		};
++
++		led-back-gn0 {
++			gpios = <&gpiomax 0 1>;
++			/* blinking done by mainctl */
++			/* linux,default-trigger = "heartbeat"; */
++			default-state = "off";
++		};
++
++		led-back-gn1 {
++			gpios = <&gpiomax 1 1>;
++			default-state = "off";
++		};
++
++		led-back-ge {
++			gpios = <&gpiomax 2 1>;
++			default-state = "off";
++		};
++
++		led-back-rt {
++			gpios = <&gpiomax 3 1>;
++			default-state = "off";
++		};
++	};
++};
+diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
+index 05813fbf3daf..3a4b06e223fe 100644
+--- a/drivers/gpio/gpio-max7301.c
++++ b/drivers/gpio/gpio-max7301.c
+@@ -18,8 +18,22 @@
+ #include <linux/spi/spi.h>
+ #include <linux/spi/max7301.h>
+ 
++//
++// WORK modification: RST: directly export spi read/write functions
++//                         to enable setting multiple GPIOs at once
++//                         and export actual spi device
++//
++
++static struct device *the_dev = NULL; // singleton
++
++struct device *max7301_get_dev(void)
++{
++	return the_dev;
++}
++EXPORT_SYMBOL_GPL(max7301_get_dev);
++
+ /* A write to the MAX7301 means one message with one transfer */
+-static int max7301_spi_write(struct device *dev, unsigned int reg,
++int max7301_spi_write(struct device *dev, unsigned int reg,
+ 				unsigned int val)
+ {
+ 	struct spi_device *spi = to_spi_device(dev);
+@@ -27,10 +41,11 @@ static int max7301_spi_write(struct device *dev, unsigned int reg,
+ 
+ 	return spi_write(spi, (const u8 *)&word, sizeof(word));
+ }
++EXPORT_SYMBOL_GPL(max7301_spi_write);
+ 
+ /* A read from the MAX7301 means two transfers; here, one message each */
+ 
+-static int max7301_spi_read(struct device *dev, unsigned int reg)
++int max7301_spi_read(struct device *dev, unsigned int reg)
+ {
+ 	int ret;
+ 	u16 word;
+@@ -49,6 +64,7 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 		return ret;
+ 	return word & 0xff;
+ }
++EXPORT_SYMBOL_GPL(max7301_spi_read);
+ 
+ static int max7301_probe(struct spi_device *spi)
+ {
+@@ -56,7 +72,7 @@ static int max7301_probe(struct spi_device *spi)
+ 	int ret;
+ 
+ 	/* bits_per_word cannot be configured in platform data */
+-	spi->bits_per_word = 16;
++	spi->bits_per_word = 8;
+ 	ret = spi_setup(spi);
+ 	if (ret < 0)
+ 		return ret;
+@@ -70,6 +86,12 @@ static int max7301_probe(struct spi_device *spi)
+ 	ts->dev = &spi->dev;
+ 
+ 	ret = __max730x_probe(ts);
++	if (ret) {
++		printk("MAX7301 not found\n");
++	} else {
++		the_dev = &spi->dev;
++		printk("MAX7301 driver loaded\n");
++	}
+ 	return ret;
+ }
+ 
+diff --git a/drivers/gpio/gpio-max730x.c b/drivers/gpio/gpio-max730x.c
+index 0f57d2d248ec..f1460d8cfc08 100644
+--- a/drivers/gpio/gpio-max730x.c
++++ b/drivers/gpio/gpio-max730x.c
+@@ -217,6 +217,12 @@ int __max730x_probe(struct max7301 *ts)
+ 	if (ret)
+ 		goto exit_destroy;
+ 
++	if (pdata && pdata->setup) {
++		ret = pdata->setup(ts->chip.base,
++				ts->chip.ngpio, pdata->context);
++		if (ret < 0)
++			dev_warn(dev, "setup failed, %d\n", ret);
++	}
+ 	return ret;
+ 
+ exit_destroy:
+@@ -227,11 +233,27 @@ EXPORT_SYMBOL_GPL(__max730x_probe);
+ 
+ int __max730x_remove(struct device *dev)
+ {
++	struct max7301_platform_data *pdata;
+ 	struct max7301 *ts = dev_get_drvdata(dev);
+ 
+ 	if (ts == NULL)
+ 		return -ENODEV;
+ 
++	pdata = dev->platform_data;
++
++	if (pdata && pdata->teardown) {
++		int ret;
++		
++		ret = pdata->teardown(ts->chip.base,
++				ts->chip.ngpio, pdata->context);
++		if (ret < 0) {
++			dev_err(dev, "teardown failed, %d\n", ret);
++			return ret;
++		}
++	}
++
++	dev_set_drvdata(dev, NULL);
++
+ 	/* Power down the chip and disable IRQ output */
+ 	ts->write(dev, 0x04, 0x00);
+ 	gpiochip_remove(&ts->chip);
+diff --git a/drivers/gpio/gpio-pca953x.c b/drivers/gpio/gpio-pca953x.c
+index c844d7eccb6c..20f195bf71f9 100644
+--- a/drivers/gpio/gpio-pca953x.c
++++ b/drivers/gpio/gpio-pca953x.c
+@@ -352,12 +352,20 @@ exit:
+ 	mutex_unlock(&chip->i2c_lock);
+ }
+ 
++static int pca953x_gpio_set_debounce(struct gpio_chip *chip, unsigned offset, unsigned debounce)
++{
++	// WORK: according tru: if the key is pressed an interrupt is generated. When the interrupt
++	// routine reads the key-state, the key is for sure in the correct state
++	return 0;
++}
++
+ static void pca953x_setup_gpio(struct pca953x_chip *chip, int gpios)
+ {
+ 	struct gpio_chip *gc;
+ 
+ 	gc = &chip->gpio_chip;
+ 
++	gc->set_debounce = pca953x_gpio_set_debounce;  // WORK: workaround to eliminate warning in gpiolib.c
+ 	gc->direction_input  = pca953x_gpio_direction_input;
+ 	gc->direction_output = pca953x_gpio_direction_output;
+ 	gc->get = pca953x_gpio_get_value;
+@@ -660,6 +668,11 @@ out:
+ 	return ret;
+ }
+ 
++struct i2c_client *work_client24;
++EXPORT_SYMBOL_GPL(work_client24);
++struct i2c_client *work_client25;
++EXPORT_SYMBOL_GPL(work_client25);
++
+ static int pca953x_probe(struct i2c_client *client,
+ 				   const struct i2c_device_id *id)
+ {
+@@ -668,6 +681,7 @@ static int pca953x_probe(struct i2c_client *client,
+ 	int irq_base = 0;
+ 	int ret;
+ 	u32 invert = 0;
++	int i;
+ 
+ 	chip = devm_kzalloc(&client->dev,
+ 			sizeof(struct pca953x_chip), GFP_KERNEL);
+@@ -712,8 +726,10 @@ static int pca953x_probe(struct i2c_client *client,
+ 		ret = device_pca953x_init(chip, invert);
+ 	else
+ 		ret = device_pca957x_init(chip, invert);
++	// WORK92105: Ignore missing device: Dynamically test from userspace
++	// at runtime
+ 	if (ret)
+-		return ret;
++		dev_warn(&client->dev, "Device missing!\n");
+ 
+ 	ret = gpiochip_add(&chip->gpio_chip);
+ 	if (ret)
+@@ -730,6 +746,20 @@ static int pca953x_probe(struct i2c_client *client,
+ 			dev_warn(&client->dev, "setup failed, %d\n", ret);
+ 	}
+ 
++	// WORK92105: LEDs Initially RED
++	if (client->addr == 0x21 || client->addr == 0x22)
++		for (i = 0; i < 8; i++) {
++			gpio_request(chip->gpio_chip.base + i, "LEDs preset");
++				gpio_direction_output(chip->gpio_chip.base + i, (i & 1) ^ 1);
++			gpio_free(chip->gpio_chip.base + i);
++		}
++
++	// WORK92105: save chip for efficient access in work-keys driver
++	if (client->addr == 0x24)
++		work_client24 = client;
++	if (client->addr == 0x25)
++		work_client25 = client;
++
+ 	i2c_set_clientdata(client, chip);
+ 	return 0;
+ }
+diff --git a/drivers/leds/leds-gpio.c b/drivers/leds/leds-gpio.c
+index 5db4515a4fd7..a783e9703543 100644
+--- a/drivers/leds/leds-gpio.c
++++ b/drivers/leds/leds-gpio.c
+@@ -223,8 +223,13 @@ static struct gpio_leds_priv *gpio_leds_create(struct platform_device *pdev)
+ 		ret = create_gpio_led(&led, &priv->leds[priv->num_leds],
+ 				      dev, NULL);
+ 		if (ret < 0) {
++			// WORK92105: Ignore missing GPIO LEDs for keeping the
++			// others and dynamically detecting in userland at
++			// runtime
++			dev_warn(&pdev->dev,
++				 "WARNING: GPIO LED %s not available.\n",
++				 led.name);
+ 			fwnode_handle_put(child);
+-			goto err;
+ 		}
+ 		priv->num_leds++;
+ 	}
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index 4bf7d50b1bc7..6d900986e1fd 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -528,6 +528,7 @@ config VEXPRESS_SYSCFG
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"
+ source "drivers/misc/cb710/Kconfig"
++source "drivers/misc/work/Kconfig"
+ source "drivers/misc/ti-st/Kconfig"
+ source "drivers/misc/lis3lv02d/Kconfig"
+ source "drivers/misc/altera-stapl/Kconfig"
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index 537d7f3b78da..ed60f3dffde1 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -39,6 +39,7 @@ obj-$(CONFIG_C2PORT)		+= c2port/
+ obj-$(CONFIG_HMC6352)		+= hmc6352.o
+ obj-y				+= eeprom/
+ obj-y				+= cb710/
++obj-y				+= work/
+ obj-$(CONFIG_SPEAR13XX_PCIE_GADGET)	+= spear13xx_pcie_gadget.o
+ obj-$(CONFIG_VMWARE_BALLOON)	+= vmw_balloon.o
+ obj-$(CONFIG_ARM_CHARLCD)	+= arm-charlcd.o
+diff --git a/drivers/misc/work/Kconfig b/drivers/misc/work/Kconfig
+new file mode 100644
+index 000000000000..7d643ce7de07
+--- /dev/null
++++ b/drivers/misc/work/Kconfig
+@@ -0,0 +1,30 @@
++#
++# WORK Microwave specially arranged devices
++#
++
++menuconfig WORK_DRIVERS
++	bool "Additional device drivers for WORK92105 board"
++	---help---
++	  Say Y here to get to see options for device drivers for miscellaneous
++	  WORK Microwave modules from various categories. This option alone
++	  does not add any kernel code.
++
++	  If you say N, all options in this submenu will be skipped and disabled.
++
++if WORK_DRIVERS
++
++config WORK_KEYS
++	tristate "WORK frontpanel keys driver"
++	depends on GPIO_MAX7301
++	default y
++	help
++	  This option enables the frontpanel keys driver.
++
++config WORK_DISP
++	tristate "WORK frontpanel display driver"
++	depends on GPIO_PCA953X && MAX517
++	default y
++	help
++	  This option enables the frontpanel display driver.
++
++endif # WORK DRIVERS
+diff --git a/drivers/misc/work/Makefile b/drivers/misc/work/Makefile
+new file mode 100644
+index 000000000000..78d2e0ca292f
+--- /dev/null
++++ b/drivers/misc/work/Makefile
+@@ -0,0 +1,6 @@
++#
++# Makefile for WORK Microwave specially arranged
++#
++
++obj-$(CONFIG_WORK_KEYS)		+= work-keys.o
++obj-$(CONFIG_WORK_DISP)		+= work-disp.o
+diff --git a/drivers/misc/work/max6957.h b/drivers/misc/work/max6957.h
+new file mode 100644
+index 000000000000..8730058cad17
+--- /dev/null
++++ b/drivers/misc/work/max6957.h
+@@ -0,0 +1,56 @@
++/*
++ * max6957.h -- interface for Maxim MAX6957 SPI PortExpander
++ *           -- variants:
++ *              - 28 Ports : MAX6957AAX, MAX6957ATL
++ *              - 20 Ports : MAX6957AAI, MAX6957ANI 
++ *
++ * Copyright (C) 2010 WORK Microwave GmbH 
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#ifndef MAX6957_H
++#define MAX6957_H
++
++#include <linux/spi/spi.h>
++
++/* Register definitions (from MAX6957.pdf) */
++#define MAX6957_NOP		0x00
++#define MAX6957_GCONF		0x04	// global configuration register
++#define MAX6957_GCONFVAL_SLEEP	0x00	// (default) chip sleeps  
++#define MAX6957_GCONFVAL_OP	0x01	// chip in normal operation mode 
++#if 0
++#define MAX6957_GCONFVAL_OP	0x81	// chip in operation mode with trans.detection 
++#endif
++
++// port configuration registers
++#define MAX6957_PCONF_4T7	0x09	// only in 28-Port variant 
++#define MAX6957_PCONF_8T11	0x0A	// only in 28-Port variant
++#define MAX6957_PCONF_12T15	0x0B
++#define MAX6957_PCONF_16T19	0x0C
++#define MAX6957_PCONF_20T23	0x0D
++#define MAX6957_PCONF_24T27	0x0E
++#define MAX6957_PCONF_28T31	0x0F
++
++#define MAX6957_PCONFVAL_4OUT	0x55	// set 4 ports to GPO
++#define MAX6957_PCONFVAL_3HOUT  0x56	// set 3 ports (higher ones) to GPO, lowest to GPI
++#define MAX6957_PCONFVAL_4IN	0xAA	// (default) set 4 ports to GPI without pullup
++#define MAX6957_PCONFVAL_4INP	0xFF	// set 4 ports to GPI with pullup
++
++#define MAX6957_PACC_24T31	0x58
++#define MAX6957_PACC_16T23	0x50
++#define MAX6957_PACC_12T19	0x4C
++#define MAX6957_PACC_8T15	0x48	// only in 28-Port variant
++#define MAX6957_PACC_4T7	0x40	// only in 28-Port variant
++#define MAX6957_PACC_0		0x20
++#define MAX6957_PACC(x)		(MAX6957_PACC_0 + x)	// Port 4 to Port 11 only in 28 Port variant
++
++extern struct device *max7301_get_dev(void);
++extern int max7301_spi_write(struct device *dev, unsigned int reg,
++			     unsigned int val);
++extern int max7301_spi_read(struct device *dev, unsigned int reg);
++
++#endif // MAX6957_H
+diff --git a/drivers/misc/work/work-disp.c b/drivers/misc/work/work-disp.c
+new file mode 100644
+index 000000000000..a83db228d963
+--- /dev/null
++++ b/drivers/misc/work/work-disp.c
+@@ -0,0 +1,564 @@
++/*
++ * work-disp.c -- Display driver for WORK Frontpanel
++ *
++ * 2-line, 40 characters each
++ *
++ * Using MAX6957AAX (max6957.c) with 28 GPIOs
++ *
++ * Copyright (C) 2010 WORK Microwave GmbH 
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++// TODO:
++// * init: check data readback (startup test)
++
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/platform_device.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/delay.h>
++#include <linux/device.h>
++#include <linux/sched.h>
++#include <linux/stat.h>
++#include <linux/fs.h>
++#include <linux/of.h>
++#include <linux/miscdevice.h>
++
++#include <asm/setup.h>
++#include <linux/spi/max7301.h>
++
++//#include <mach/platform.h>
++
++#include "max6957.h"
++
++#define MODNAME "work-disp"
++
++#define DISP_SIZE 128 // 128 characters in total
++
++// definitions for display connection
++#define DISP_DATA		MAX6957_PACC_12T19
++#define DISP_EN			MAX6957_PACC(11)
++#define DISP_R_W		MAX6957_PACC(10)
++#define DISP_RS			MAX6957_PACC(9)
++
++#define INST_CLEAR        0x01
++#define INST_HOME         0x02
++#define INST_ENTRY_MODE   0x04
++#define INST_DISPLAY_ON   0x08
++#define INST_SHIFT        0x10
++#define INST_FUNCTION     0x20
++#define INST_CHAR_GEN     0x40
++#define INST_SETPOS       0x80
++
++static struct device *sd;
++
++// low level write: set output pins (caller needs to set data direction!)
++static void disp_write_data(u8 data) {
++	struct max7301 *ts = dev_get_drvdata(sd);
++	
++	mutex_lock(&ts->lock);
++	max7301_spi_write(sd, DISP_DATA, data);
++	mutex_unlock(&ts->lock);
++}
++
++// low level read: read input pins (caller needs to set data direction!)
++static u8 disp_read_data(void) {
++	struct max7301 *ts = dev_get_drvdata(sd);
++	u8 result;
++
++	mutex_lock(&ts->lock);
++	result = max7301_spi_read(sd, DISP_DATA);
++	mutex_unlock(&ts->lock);
++
++	return result;
++}
++
++// Display E is high active
++static int en_value_old = -1;
++static void disp_write_en(int val) {
++	if (val != en_value_old) {
++		struct max7301 *ts = dev_get_drvdata(sd);
++		mutex_lock(&ts->lock);
++		max7301_spi_write(sd, DISP_EN, val);
++		mutex_unlock(&ts->lock);
++		en_value_old = val;
++	}
++}
++
++// 0 = Write, 1 = Read
++static int rw_value_old = -1;
++static void disp_write_rw(int val) {
++	if (val != rw_value_old) {
++		struct max7301 *ts = dev_get_drvdata(sd);
++		mutex_lock(&ts->lock);
++		max7301_spi_write(sd, DISP_R_W, val);
++		mutex_unlock(&ts->lock);
++		rw_value_old = val;
++	}
++}
++
++static int rs_value_old = -1;
++static void disp_write_rs(int val) {
++	if (val != rs_value_old) {
++		struct max7301 *ts = dev_get_drvdata(sd);
++		mutex_lock(&ts->lock);
++		max7301_spi_write(sd, DISP_RS, val);
++		mutex_unlock(&ts->lock);
++		rs_value_old = val;
++	}
++}
++
++#define DISP_IN  0
++#define DISP_OUT 1
++// output: DISP_IN / DISP_OUT
++static int  output_old = -1;
++static void disp_set_io(int output) {
++	if (output != output_old) {
++		struct max7301 *ts = dev_get_drvdata(sd);
++		mutex_lock(&ts->lock);
++		if (output) {
++			max7301_spi_write(sd, MAX6957_PCONF_16T19, MAX6957_PCONFVAL_4OUT);
++			max7301_spi_write(sd, MAX6957_PCONF_12T15, MAX6957_PCONFVAL_4OUT);
++		} else {
++			max7301_spi_write(sd, MAX6957_PCONF_16T19, MAX6957_PCONFVAL_4IN);
++			max7301_spi_write(sd, MAX6957_PCONF_12T15, MAX6957_PCONFVAL_4IN);
++		}
++		mutex_unlock(&ts->lock);
++		output_old = output;
++	}
++}
++
++static int disp_is_busy(void) {
++	int ir;
++
++	disp_write_rs(0);
++	disp_write_rw(1);
++	disp_set_io(DISP_IN);
++	disp_write_en(1);
++	ir = disp_read_data();
++	disp_write_en(0);
++
++	//printk("DEBUG: Busy/Address counter: 0x%02X\n", ir);
++	return ir & 0x80;
++}
++
++static void disp_write_char(char c) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(1);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	disp_write_en(1);
++	disp_write_data(c);
++	disp_write_en(0);
++}
++
++static u8 disp_read_char(void) {
++	int c;
++
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++	
++	disp_write_rs(1);
++	disp_write_rw(1);
++	disp_set_io(DISP_IN);
++	disp_write_en(1);
++	c = disp_read_data();
++	disp_write_en(0);
++
++	return c;
++}
++
++static void disp_write_instruction(u8 i) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(0);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	disp_write_en(1);
++	disp_write_data(i);
++	disp_write_en(0);
++}
++
++#if 0 // TODO: use it (see above)
++static void disp_read(char* s, int n) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++	
++	disp_write_rs(1);
++	disp_write_rw(1);
++	disp_set_io(DISP_IN);
++	while (n) {
++		disp_write_en(1);
++		*s = disp_read_data();
++		disp_write_en(0);
++		s++;
++		n--;
++	}
++}
++#endif
++
++// TODO: Wait necessary between adjacent characters?
++static void disp_write(char* s) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(1);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	while (*s) {
++		disp_write_en(1);
++		disp_write_data(*s);
++		disp_write_en(0);
++		s++;
++	}
++}
++
++static void disp_write_mem(const char* s, int len) {
++	int i = 0;
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(1);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	while (i < len) {
++		disp_write_en(1);
++		disp_write_data(s[i]);
++		disp_write_en(0);
++		i++;
++	}
++}
++
++// Clear display
++static void disp_instruction_clear(void) {
++	disp_write_instruction(INST_CLEAR);
++}
++
++static void disp_instruction_home(void) {
++	disp_write_instruction(INST_HOME);
++}
++
++static void disp_instruction_entry_mode(int increment, int shift) {
++	u8 options = 0;
++
++	if (increment) options |= 2;
++	if (shift) options |= 1;
++
++	disp_write_instruction(INST_ENTRY_MODE | options);
++}
++
++static void disp_instruction_on(int on, int cursor, int blink) {
++	u8 options = 0;
++
++	if (on) options |= 4;
++	if (cursor) options |= 2;
++	if (blink) options |= 1;
++
++	disp_write_instruction(INST_DISPLAY_ON | options);
++}
++
++static void disp_instruction_function(int eightbits, int twoline, int tendots) {
++	u8 options = 0;
++
++	if (eightbits) options |= 0x10;
++	if (twoline) options |= 0x08;
++	if (tendots) options |= 0x04;
++
++	disp_write_instruction(INST_FUNCTION | options);
++}
++
++// line: 0..1
++// column: 0..39
++static void disp_instruction_setpos(int line, int column) {
++	disp_write_instruction(INST_SETPOS | (line * 0x40 + column));
++}
++
++static u8 char_gen_chars[] = {
++	// The following taken from old frontpanel, work_gcc_lib/display.c
++
++	// #8, empty rectangle
++        0x1F, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1F,
++        // #9, filled right arrow >
++        0x10, 0x18, 0x1C, 0x1E, 0x1C, 0x18, 0x10, 0x00,
++        // #10, filled left arrow <
++        0x01, 0x03, 0x07, 0x0F, 0x07, 0x03, 0x01, 0x00,
++        // #11, up and down arrow
++        0x04, 0x0E, 0x1F, 0x00, 0x00, 0x1F, 0x0E, 0x04,
++        // #12, plus/minus
++        0x04, 0x04, 0x1F, 0x04, 0x04, 0x00, 0x1F, 0x00,
++        // #13, fat exclamation mark
++        0x06, 0x06, 0x06, 0x06, 0x00, 0x06, 0x06, 0x00,
++        // #14, empty square
++        0x00, 0x1F, 0x11, 0x11, 0x11, 0x1F, 0x00, 0x00,
++        // #15, struck out square
++        0x00, 0x1F, 0x19, 0x15, 0x13, 0x1F, 0x00, 0x00,
++};
++
++static void disp_init_char_gen(void) {
++	int i;
++
++	disp_write_instruction(INST_CHAR_GEN);
++
++	for (i = 0; i < sizeof(char_gen_chars); i++) {
++		disp_write_char(char_gen_chars[i]);
++	}
++
++	disp_instruction_setpos(0, 0);
++}
++
++static void disp_demo(void) {
++	disp_instruction_clear();
++	disp_instruction_setpos(0, 13);
++	disp_write("WORK Microwave");
++	disp_instruction_setpos(1, 15);
++	disp_write("Booting ..");
++}
++
++static int disp_init(void) {
++	struct max7301 *ts;
++	
++	int err = 0;
++
++	// TODO: find device by name instead of modifying upstream's max7301.c?
++	sd = max7301_get_dev();
++	if (!sd) {
++		printk("work_disp: no spi device found.\n");
++		err = -EPROBE_DEFER;
++		goto exit;
++	}
++
++	ts = dev_get_drvdata(sd);
++	mutex_lock(&ts->lock);
++	/* general MAX7301 init: TODO: move somewhere else! */
++        // set chip to normal operation mode
++        err = max7301_spi_write(sd, MAX6957_GCONF, MAX6957_GCONFVAL_OP);
++	if (err) {
++		printk("work_disp: spi communication error.\n");
++		goto exit_unlock;
++	}
++
++        // init unused ports TODO: elsewhere!
++        //max7301_spi_write(sd, MAX6957_PCONF_4T7, 0x55);
++        //max7301_spi_write(sd, MAX6957_PCONF_8T11, 0x55);
++
++	err = max7301_spi_read(sd, MAX6957_GCONF);
++	if (err != MAX6957_GCONFVAL_OP) {
++		printk("work_disp: Bad value in reg (expected 0x%02x, got 0x%02x, (%d)), "
++		       "display missing?\n", MAX6957_GCONFVAL_OP, err, err);
++		if (err >= 0)
++			err = -1;
++		goto exit_unlock;
++	}
++
++
++	/* config disp pins */
++	max7301_spi_write(sd, MAX6957_PCONF_8T11, MAX6957_PCONFVAL_3HOUT);
++	mutex_unlock(&ts->lock);
++
++	disp_write_en(0); // Initial display disable
++
++	disp_instruction_function(1, 1, 0); // Init: Function Set: 8Bit, 2-line, 5x7 dot
++	
++	// Prevent setting because already initialized in bootloader
++	// and writing 3 causes broken character display
++	//disp_write_char(3); // For VFD/itron displays: minimum brightness
++
++	disp_instruction_on(1, 0, 0);       // Display on, cursor off, no blink
++	disp_instruction_entry_mode(1, 0);  // Entry mode: Move cursor, don't shift display
++
++	disp_init_char_gen();
++
++	return 0;
++
++exit_unlock:
++	mutex_unlock(&ts->lock);
++exit:
++	return err;
++}
++
++#if 0
++static int is_open = 0;
++#endif
++static int filepos = 0;
++
++static struct miscdevice md;
++
++static int fop_open(struct inode *in, struct file *f) {
++	if (MINOR(in->i_rdev) != md.minor) {
++		return -ENOENT;
++	}
++#if 0
++	if (is_open) {
++		return -EBUSY;
++	}
++	is_open = 1;
++#endif
++	disp_instruction_setpos(0, 0);
++	filepos = 0;
++	return 0;
++}
++
++static int fop_close(struct inode *in, struct file *f) {
++	if (MINOR(in->i_rdev) != md.minor) {
++		printk("work-disp: fop_close(): Called on bad minor number.\n");
++		return -EBADF;
++	}
++#if 0
++	if (!is_open) {
++		printk("work-disp: fop_close(): File not open on close()\n");
++		return -EBADF;
++	}
++	is_open = 0;
++#endif
++	return 0;
++}
++
++static ssize_t fop_read(struct file *f, char *buf, size_t n, loff_t *offset) {
++	ssize_t result = 0;
++
++	if (filepos < 80) {
++		int line = (filepos >= 40) ? 1 : 0;
++		int column = filepos - (line * 40);
++
++		disp_instruction_setpos(line, column);
++		while (n && result + filepos < 80) {
++			*buf = disp_read_char();
++			buf++;
++			n--;
++			result++;
++		}
++	}
++
++	filepos += result;
++	return result;
++}
++
++static ssize_t fop_write(struct file *f, const char *buf, size_t n, loff_t *offset) {
++	disp_write_mem(buf, n);
++	filepos += n;
++	return n;
++}
++
++static long fop_ioctl(struct file *f, unsigned int cmd, unsigned long arg) {
++	int result = 0;
++
++	switch (cmd) {
++		case 0: // Clear
++			disp_instruction_clear();
++			filepos = 0;
++			break;
++		case 1: // Home
++			disp_instruction_home();
++			filepos = 0;
++			break;
++		case 2: // Entry Mode
++			disp_instruction_entry_mode(arg & 1, arg & 2);
++			break;
++		case 3: // Display On
++			disp_instruction_on(arg & 1, arg & 2, arg & 4);
++			break;
++		case 4: // Display Function
++			disp_instruction_function(arg & 1, arg & 2, arg & 4);
++			break;
++		default:
++			result = -1;
++	}
++	return result;
++}
++
++static loff_t fop_llseek(struct file *f, loff_t offset, int whence) {
++	int line, column;
++
++	switch (whence) {
++		case SEEK_SET:
++			filepos = offset;
++			break;
++		case SEEK_CUR:
++			filepos += offset;
++			break;
++		case SEEK_END:
++			filepos = DISP_SIZE + offset;
++			break;
++	}
++	
++	line = (filepos >= 40) ? 1 : 0;
++	column = filepos - (line * 40);
++	disp_instruction_setpos(line, column);
++
++	return filepos;
++}
++
++static struct file_operations fops = {
++	.open = fop_open,
++	.release = fop_close,
++	.read = fop_read,
++	.write = fop_write,
++	.unlocked_ioctl = fop_ioctl,
++	.llseek = fop_llseek,
++};
++
++static struct miscdevice md = {
++	.name = MODNAME,
++	.nodename = MODNAME,
++	.minor = MISC_DYNAMIC_MINOR,
++	.fops = &fops,
++	.mode = 0644,
++};
++
++static int work_disp_probe(struct platform_device *pdev)
++{
++	int result;
++
++	result = disp_init();
++	if (result) {
++		printk("work_disp: Error on disp_probe()\n");
++		goto fail1;
++	}
++
++	disp_demo();
++
++	result = misc_register(&md);
++	if (result != 0) {
++		printk("work_disp: Error on register\n");
++		goto fail1;
++	}
++	
++	printk("WORK display driver loaded\n");
++
++	return 0;
++
++fail1:
++	return result;
++	
++}
++
++static int work_disp_remove(struct platform_device *pdev)
++{
++	disp_instruction_on(0, 0, 0);       // Display off (cursor off, no blink)
++	misc_deregister(&md);
++	printk("WORK display driver unloaded\n");
++	return 0;
++}
++
++static const struct of_device_id work_disp_match[] = {
++        { .compatible = "work,disp" },
++        { }
++};
++MODULE_DEVICE_TABLE(of, work_disp_match);
++
++static struct platform_driver work_disp_driver = {
++	.probe	= work_disp_probe,
++	.remove	= work_disp_remove,
++	.driver	= {
++		.name = MODNAME,
++		.of_match_table = of_match_ptr(work_disp_match),
++	},
++};
++
++module_platform_driver(work_disp_driver);
++
++MODULE_DESCRIPTION("Driver for display on WORK Frontpanel");
++MODULE_AUTHOR("Roland Stigge <roland.stigge@work-microwave.de>");
++MODULE_LICENSE("GPL");
+diff --git a/include/linux/spi/max7301.h b/include/linux/spi/max7301.h
+index bcaa2f762cc1..02d685aa6311 100644
+--- a/include/linux/spi/max7301.h
++++ b/include/linux/spi/max7301.h
+@@ -28,6 +28,13 @@ struct max7301_platform_data {
+ 	 * ports of the controller are not used, too.
+ 	 */
+ 	u32		input_pullup_active;
++
++	void		*context;	/* param to setup/teardown */
++
++	int		(*setup)(unsigned gpio, unsigned ngpio,
++				void *context);
++	int		(*teardown)(unsigned gpio, unsigned ngpio,
++				void *context);
+ };
+ 
+ extern int __max730x_remove(struct device *dev);

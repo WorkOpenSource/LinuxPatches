@@ -1,0 +1,1319 @@
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index c290990d73ed..efd90acf8727 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -781,6 +781,7 @@ source "drivers/misc/mei/Kconfig"
+ source "drivers/misc/vmw_vmci/Kconfig"
+ source "drivers/misc/mic/Kconfig"
+ source "drivers/misc/genwqe/Kconfig"
++source "drivers/misc/work92107/Kconfig"
+ source "drivers/misc/echo/Kconfig"
+ source "drivers/misc/cxl/Kconfig"
+ endmenu
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index 7a3ea89339b4..51b2a1f176e0 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -50,6 +50,7 @@ obj-$(CONFIG_SRAM)		+= sram.o
+ obj-$(CONFIG_SRAM_EXEC)		+= sram-exec.o
+ obj-y				+= mic/
+ obj-$(CONFIG_GENWQE)		+= genwqe/
++obj-y				+= work92107/
+ obj-$(CONFIG_ECHO)		+= echo/
+ obj-$(CONFIG_VEXPRESS_SYSCFG)	+= vexpress-syscfg.o
+ obj-$(CONFIG_CXL_BASE)		+= cxl/
+diff --git a/drivers/misc/work92107/Kconfig b/drivers/misc/work92107/Kconfig
+new file mode 100644
+index 000000000000..f2f59f7e4a96
+--- /dev/null
++++ b/drivers/misc/work92107/Kconfig
+@@ -0,0 +1,43 @@
++#
++# WORK Microwave specially arranged devices
++#
++
++menuconfig WORK92107_DRIVERS
++	bool "Additional device drivers for WORK92107 board"
++	depends on PCI
++	---help---
++	  Say Y here to get to see options for device drivers for miscellaneous
++	  WORK Microwave modules from various categories. This option alone
++	  does not add any kernel code.
++
++	  If you say N, all options in this submenu will be skipped and disabled.
++
++if WORK92107_DRIVERS
++
++config WORK92107_SATIF
++	tristate "WORK SAT Interface"
++	default y
++	help
++	  This option enables the sat interface.
++
++config WORK92107_SATIFDEV
++	tristate "WORK SAT Interface dummy device"
++	default n
++	help
++	  This option enables the sat interface dummy device.
++	  This is used instead of device tree activation.
++
++config WORK92107_DMDIF
++	tristate "WORK DMD Interface"
++	default y
++	help
++	  This option enables the dmd interface.
++
++config WORK92107_DMDIFDEV
++	tristate "WORK DMD Interface dummy device"
++	default n
++	help
++	  This option enables the dmd interface dummy device.
++	  This is used instead of device tree activation.
++
++endif # WORK92107 DRIVERS
+diff --git a/drivers/misc/work92107/Makefile b/drivers/misc/work92107/Makefile
+new file mode 100644
+index 000000000000..5b24b8061e84
+--- /dev/null
++++ b/drivers/misc/work92107/Makefile
+@@ -0,0 +1,9 @@
++#
++# Makefile for WORK Microwave specially arranged
++#
++
++obj-$(CONFIG_WORK92107_SATIF)		+= satif.o
++obj-$(CONFIG_WORK92107_DMDIF)		+= dmdif.o
++
++obj-$(CONFIG_WORK92107_SATIFDEV)	+= satifdev.o
++obj-$(CONFIG_WORK92107_DMDIFDEV)	+= dmdifdev.o
+diff --git a/drivers/misc/work92107/dmdif.c b/drivers/misc/work92107/dmdif.c
+new file mode 100644
+index 000000000000..00241ffa9a0b
+--- /dev/null
++++ b/drivers/misc/work92107/dmdif.c
+@@ -0,0 +1,568 @@
++/*
++ * dmdif.c -- Demodulator interface driver
++ *
++ * Copyright (C) 2013 WORK Microwave GmbH 
++ */
++
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/interrupt.h>
++#include <linux/platform_device.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/delay.h>
++#include <linux/device.h>
++#include <linux/sched.h>
++#include <linux/stat.h>
++#include <linux/fs.h>
++#include <linux/gpio.h>
++#include <linux/poll.h>
++#include <linux/of.h>
++#include <linux/of_net.h>
++#include <linux/miscdevice.h>
++#include <linux/mm.h>
++#include <linux/vmalloc.h>
++#include <linux/skbuff.h>
++#include <linux/etherdevice.h>
++#include <linux/netdevice.h>
++#include <linux/ethtool.h>
++#include <linux/if_arp.h>
++
++#define DRV_NAME "work-dmdif"
++#define DRV_VERSION "1.00"
++
++#define NAPI_WEIGHT 16
++
++static struct miscdevice md;
++
++struct mmap_info {
++	char *data;	/* the data */
++	int reference;       /* how many times it is mmapped */  	
++};
++
++/* keep track of how many times it is mmapped */
++static void mmap_open(struct vm_area_struct *vma)
++{
++	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
++	info->reference++;
++}
++
++static void mmap_close(struct vm_area_struct *vma)
++{
++	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
++	info->reference--;
++}
++
++/* called to map area initially */
++static int mmap_fault(struct vm_fault *vmf)
++{
++	struct page *page;
++	struct mmap_info *info;
++	pgoff_t pgoff = vmf->pgoff;
++
++	info = (struct mmap_info *)vmf->vma->vm_private_data;
++	if (!info || !info->data) {
++		printk("dmdif: no data!\n");
++		return VM_FAULT_OOM;
++	}
++
++	//page = vmalloc_to_page(info->data + (pgoff << PAGE_SHIFT));
++	page = virt_to_page(info->data + (pgoff << PAGE_SHIFT));
++	if (!page)
++		return VM_FAULT_SIGBUS;
++	
++	/* increment the reference count of this page */
++	get_page(page);
++	vmf->page = page;
++
++	return 0;
++}
++
++static struct vm_operations_struct mmap_vm_ops = {
++	.open = mmap_open,
++	.close = mmap_close,
++	.fault = mmap_fault,
++
++};
++
++static int fop_mmap(struct file *f, struct vm_area_struct *vma)
++{
++	vma->vm_ops = &mmap_vm_ops;
++	vma->vm_private_data = f->private_data;
++	mmap_open(vma);
++	return 0;
++}
++
++static int fop_open(struct inode *in, struct file *f) {
++	struct mmap_info *info;
++
++	if (MINOR(in->i_rdev) != md.minor) {
++		return -ENOENT;
++	}
++	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
++	//info->data = (char *)vmalloc(PAGE_SIZE * 100);
++	info->data = (char *)kmalloc(PAGE_SIZE * 100, GFP_KERNEL);
++	//info->data = (char *)get_zeroed_page(GFP_KERNEL);
++	memcpy(info->data, "exampledata", 12);
++	f->private_data = info;
++	return 0;
++}
++
++static int fop_close(struct inode *in, struct file *f) {
++	struct mmap_info *info;
++
++	if (MINOR(in->i_rdev) != md.minor) {
++		printk("work-dmdif: fop_close(): Called on bad minor number.\n");
++		return -EBADF;
++	}
++	info = f->private_data;
++	//vfree(info->data);
++	kfree(info->data);
++	kfree(info);
++	f->private_data = NULL;
++	return 0;
++}
++
++static ssize_t fop_read(struct file *f, char *buf, size_t n, loff_t *offset) {
++#if 0 // TODO: write to buf
++	int i;
++
++	for (i = 0; i < n; i++) {
++		buf[i] = old_state;
++	}
++	state_change = 0;
++#endif
++
++	return n;
++}
++
++static unsigned int fop_poll(struct file *f, struct poll_table_struct *pt) {
++	unsigned int mask = 0;
++#if 0 // TODO: add poll event
++	poll_wait(f, &wait_queue, pt);
++
++	if (state_change)
++		mask = POLLIN | POLLRDNORM;
++#endif
++
++	return mask;
++}
++
++static struct file_operations fops = {
++	.open = fop_open,
++	.release = fop_close,
++	.mmap = fop_mmap,
++	.read = fop_read,
++	.poll = fop_poll,
++};
++
++static struct miscdevice md = {
++	.name = DRV_NAME,
++	.nodename = DRV_NAME,
++	.minor = MISC_DYNAMIC_MINOR,
++	.fops = &fops,
++	.mode = 0644,
++};
++
++struct netdata_local {
++	struct platform_device *pdev;
++	struct net_device *ndev;
++	spinlock_t lock;
++	struct napi_struct napi;
++	u32 msg_enable;
++};
++
++static int dmd_eth_open(struct net_device *ndev)
++{
++        struct netdata_local *pldat = netdev_priv(ndev);
++
++        if (netif_msg_ifup(pldat))
++                dev_dbg(&pldat->pdev->dev, "enabling %s\n", ndev->name);
++
++#if 0
++        __lpc_eth_clock_enable(pldat, true);
++
++        /* Reset and initialize */
++        __lpc_eth_reset(pldat);
++        __lpc_eth_init(pldat);
++
++        /* schedule a link state check */
++        phy_start(pldat->phy_dev);
++#endif
++        netif_start_queue(ndev);
++        napi_enable(&pldat->napi);
++
++	netif_carrier_on(ndev);
++
++        return 0;
++}
++
++static int dmd_eth_close(struct net_device *ndev)
++{
++        //unsigned long flags;
++        struct netdata_local *pldat = netdev_priv(ndev);
++
++        if (netif_msg_ifdown(pldat))
++                dev_dbg(&pldat->pdev->dev, "shutting down %s\n", ndev->name);
++
++        napi_disable(&pldat->napi);
++        netif_stop_queue(ndev);
++
++#if 0
++        if (pldat->phy_dev)
++                phy_stop(pldat->phy_dev);
++
++        spin_lock_irqsave(&pldat->lock, flags);
++        __lpc_eth_reset(pldat);
++#endif
++        netif_carrier_off(ndev);
++#if 0
++        writel(0, LPC_ENET_MAC1(pldat->net_base));
++        writel(0, LPC_ENET_MAC2(pldat->net_base));
++        spin_unlock_irqrestore(&pldat->lock, flags);
++
++        __lpc_eth_clock_enable(pldat, false);
++#endif
++
++        return 0;
++}
++
++static int dmd_eth_start_xmit(struct sk_buff *skb, struct net_device *ndev)
++{
++#if 0
++        struct netdata_local *pldat = netdev_priv(ndev);
++        u32 len, txidx;
++        u32 *ptxstat;
++        struct txrx_desc_t *ptxrxdesc;
++
++        len = skb->len;
++
++        spin_lock_irq(&pldat->lock);
++
++        if (pldat->num_used_tx_buffs >= (ENET_TX_DESC - 1)) {
++                /* This function should never be called when there are no
++                   buffers */
++                netif_stop_queue(ndev);
++                spin_unlock_irq(&pldat->lock);
++                WARN(1, "BUG! TX request when no free TX buffers!\n");
++                return NETDEV_TX_BUSY;
++        }
++
++        /* Get the next TX descriptor index */
++        txidx = readl(LPC_ENET_TXPRODUCEINDEX(pldat->net_base));
++
++        /* Setup control for the transfer */
++        ptxstat = &pldat->tx_stat_v[txidx];
++        *ptxstat = 0;
++        ptxrxdesc = &pldat->tx_desc_v[txidx];
++        ptxrxdesc->control =
++                (len - 1) | TXDESC_CONTROL_LAST | TXDESC_CONTROL_INT;
++
++        /* Copy data to the DMA buffer */
++        memcpy(pldat->tx_buff_v + txidx * ENET_MAXF_SIZE, skb->data, len);
++
++        /* Save the buffer and increment the buffer counter */
++        pldat->skblen[txidx] = len;
++        pldat->num_used_tx_buffs++;
++
++        /* Start transmit */
++        txidx++;
++        if (txidx >= ENET_TX_DESC)
++                txidx = 0;
++        writel(txidx, LPC_ENET_TXPRODUCEINDEX(pldat->net_base));
++
++        /* Stop queue if no more TX buffers */
++        if (pldat->num_used_tx_buffs >= (ENET_TX_DESC - 1))
++                netif_stop_queue(ndev);
++
++        spin_unlock_irq(&pldat->lock);
++#endif
++
++        dev_kfree_skb(skb);
++        return NETDEV_TX_OK;
++}
++
++static void dmd_eth_set_multicast_list(struct net_device *ndev)
++{
++#if 0
++        struct netdata_local *pldat = netdev_priv(ndev);
++        struct netdev_hw_addr_list *mcptr = &ndev->mc;
++        struct netdev_hw_addr *ha;
++        u32 tmp32, hash_val, hashlo, hashhi;
++        unsigned long flags;
++
++        spin_lock_irqsave(&pldat->lock, flags);
++
++        /* Set station address */
++        __lpc_set_mac(pldat, ndev->dev_addr);
++
++        tmp32 =  LPC_RXFLTRW_ACCEPTUBROADCAST | LPC_RXFLTRW_ACCEPTPERFECT;
++
++        if (ndev->flags & IFF_PROMISC)
++                tmp32 |= LPC_RXFLTRW_ACCEPTUNICAST |
++                        LPC_RXFLTRW_ACCEPTUMULTICAST;
++        if (ndev->flags & IFF_ALLMULTI)
++                tmp32 |= LPC_RXFLTRW_ACCEPTUMULTICAST;
++
++        if (netdev_hw_addr_list_count(mcptr))
++                tmp32 |= LPC_RXFLTRW_ACCEPTUMULTICASTHASH;
++
++        writel(tmp32, LPC_ENET_RXFILTER_CTRL(pldat->net_base));
++
++
++        /* Set initial hash table */
++        hashlo = 0x0;
++        hashhi = 0x0;
++
++        /* 64 bits : multicast address in hash table */
++        netdev_hw_addr_list_for_each(ha, mcptr) {
++                hash_val = (ether_crc(6, ha->addr) >> 23) & 0x3F;
++
++                if (hash_val >= 32)
++                        hashhi |= 1 << (hash_val - 32);
++                else
++                        hashlo |= 1 << hash_val;
++        }
++
++        writel(hashlo, LPC_ENET_HASHFILTERL(pldat->net_base));
++        writel(hashhi, LPC_ENET_HASHFILTERH(pldat->net_base));
++
++        spin_unlock_irqrestore(&pldat->lock, flags);
++#endif
++}
++
++static int dmd_eth_ioctl(struct net_device *ndev, struct ifreq *req, int cmd)
++{
++#if 0
++        struct netdata_local *pldat = netdev_priv(ndev);
++        struct phy_device *phydev = pldat->phy_dev;
++#endif
++
++        if (!netif_running(ndev))
++                return -EINVAL;
++
++        return 0;
++}
++
++static int dmd_set_mac_address(struct net_device *ndev, void *p)
++{
++        struct sockaddr *addr = p;
++#if 0
++        struct netdata_local *pldat = netdev_priv(ndev);
++        unsigned long flags;
++#endif
++
++        if (!is_valid_ether_addr(addr->sa_data))
++                return -EADDRNOTAVAIL;
++        memcpy(ndev->dev_addr, addr->sa_data, ETH_ALEN);
++
++#if 0
++        spin_lock_irqsave(&pldat->lock, flags);
++
++        /* Set station address */
++        __lpc_set_mac(pldat, ndev->dev_addr);
++
++        spin_unlock_irqrestore(&pldat->lock, flags);
++#endif
++
++        return 0;
++}
++
++/*
++ * Ethtool ops
++ */
++static void dmd_eth_ethtool_getdrvinfo(struct net_device *ndev,
++        struct ethtool_drvinfo *info)
++{
++        strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
++        strlcpy(info->version, DRV_VERSION, sizeof(info->version));
++        strlcpy(info->bus_info, dev_name(ndev->dev.parent),
++                sizeof(info->bus_info));
++}
++
++static u32 dmd_eth_ethtool_getmsglevel(struct net_device *ndev)
++{
++        struct netdata_local *pldat = netdev_priv(ndev);
++
++        return pldat->msg_enable;
++}
++
++static void dmd_eth_ethtool_setmsglevel(struct net_device *ndev, u32 level)
++{
++        struct netdata_local *pldat = netdev_priv(ndev);
++
++        pldat->msg_enable = level;
++}
++
++static int dmd_eth_ethtool_getsettings(struct net_device *ndev,
++        struct ethtool_cmd *cmd)
++{
++        cmd->supported          = 0;
++        cmd->advertising        = 0;
++        ethtool_cmd_speed_set(cmd, SPEED_10);
++        cmd->duplex             = DUPLEX_FULL;
++        cmd->port               = PORT_TP;
++        cmd->phy_address        = 0;
++        cmd->transceiver        = XCVR_INTERNAL;
++        cmd->autoneg            = AUTONEG_DISABLE;
++        cmd->maxtxpkt           = 0;
++        cmd->maxrxpkt           = 0;
++        return 0;
++}
++
++static const struct ethtool_ops dmd_eth_ethtool_ops = {
++        .get_drvinfo    = dmd_eth_ethtool_getdrvinfo,
++        .get_settings   = dmd_eth_ethtool_getsettings,
++        .get_msglevel   = dmd_eth_ethtool_getmsglevel,
++        .set_msglevel   = dmd_eth_ethtool_setmsglevel,
++        .get_link       = ethtool_op_get_link,
++};
++
++static const struct net_device_ops dmd_netdev_ops = {
++        .ndo_open               = dmd_eth_open,
++        .ndo_stop               = dmd_eth_close,
++        .ndo_start_xmit         = dmd_eth_start_xmit,
++        .ndo_set_rx_mode        = dmd_eth_set_multicast_list,
++        .ndo_do_ioctl           = dmd_eth_ioctl,
++        .ndo_set_mac_address    = dmd_set_mac_address,
++        .ndo_validate_addr      = eth_validate_addr,
++        .ndo_change_mtu         = eth_change_mtu,
++};
++
++static int dmd_eth_poll(struct napi_struct *napi, int budget)
++{
++        int rx_done = 0;
++#if 0
++        struct netdata_local *pldat = container_of(napi,
++                        struct netdata_local, napi);
++        struct net_device *ndev = pldat->ndev;
++        struct netdev_queue *txq = netdev_get_tx_queue(ndev, 0);
++
++        __netif_tx_lock(txq, smp_processor_id());
++        __dmd_handle_xmit(ndev);
++        __netif_tx_unlock(txq);
++        rx_done = __dmd_handle_recv(ndev, budget);
++
++        if (rx_done < budget) {
++                napi_complete(napi);
++                dmd_eth_enable_int(pldat->net_base);
++        }
++#endif
++
++        return rx_done;
++}
++
++static int work_dmdif_probe(struct platform_device *pdev)
++{
++	int result;
++	struct net_device *ndev;
++	struct netdata_local *pldat;
++
++	result = misc_register(&md);
++	if (result != 0) {
++		printk("work_dmdif: Error on registering device\n");
++		goto fail1;
++	}
++
++#if 1
++	ndev = alloc_etherdev(sizeof(struct netdata_local));
++        if (!ndev) {
++                dev_err(&pdev->dev, "could not allocate device.\n");
++                result = -ENOMEM;
++                goto fail1;
++        }
++
++	SET_NETDEV_DEV(ndev, &pdev->dev);
++
++	pldat = netdev_priv(ndev);
++	pldat->pdev = pdev;
++	pldat->ndev = ndev;
++
++	ether_setup(ndev);
++	strcpy(ndev->name, "dmd%d");//.0");
++
++	ndev->hard_header_len = 0;
++	ndev->addr_len = 0;
++	ndev->type = ARPHRD_NONE;
++	ndev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
++
++	ndev->netdev_ops = &dmd_netdev_ops;
++	ndev->ethtool_ops = &dmd_eth_ethtool_ops;
++	ndev->watchdog_timeo = msecs_to_jiffies(2500);
++
++#ifdef CONFIG_OF_NET
++        if (!is_valid_ether_addr(ndev->dev_addr)) {
++                const char *macaddr = of_get_mac_address(pdev->dev.of_node);
++                if (macaddr)
++                        memcpy(ndev->dev_addr, macaddr, ETH_ALEN);
++        }
++#endif
++        if (!is_valid_ether_addr(ndev->dev_addr))
++                eth_hw_addr_random(ndev);
++
++#if 0
++	ndev->dev_addr[0] = 0x00;
++	ndev->dev_addr[1] = 0x12;
++	ndev->dev_addr[2] = 0xb4;
++	ndev->dev_addr[3] = 0x00;
++	ndev->dev_addr[4] = 0xef;
++	ndev->dev_addr[5] = 0xec;
++#endif
++
++	pldat->msg_enable = NETIF_MSG_LINK;
++
++	netif_napi_add(ndev, &pldat->napi, dmd_eth_poll, NAPI_WEIGHT);
++
++        result = register_netdev(ndev);
++        if (result) {
++                dev_err(&pdev->dev, "Cannot register net device, aborting.\n");
++                goto fail1;
++        }
++        platform_set_drvdata(pdev, ndev);
++
++        device_init_wakeup(&pdev->dev, 1);
++        device_set_wakeup_enable(&pdev->dev, 0);
++#endif
++
++	printk("WORK dmdif registered successfully\n");
++
++	return 0;
++fail1:
++	return result;
++}
++
++static int work_dmdif_remove(struct platform_device *pdev)
++{
++	struct net_device *ndev = platform_get_drvdata(pdev);
++	//struct netdata_local *pldat = netdev_priv(ndev);
++
++	unregister_netdev(ndev);
++	platform_set_drvdata(pdev, NULL);
++
++	free_netdev(ndev);
++
++	misc_deregister(&md);
++	printk("WORK dmdif driver unloaded\n");
++	return 0;
++}
++
++static const struct of_device_id work_dmdif_match[] = {
++	{ .compatible = "work,dmdif" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, work_dmdif_match);
++
++static struct platform_driver work_dmdif_driver = {
++	.probe  = work_dmdif_probe,
++	.remove = work_dmdif_remove,
++	.driver = {
++		.name = DRV_NAME,
++		.of_match_table = of_match_ptr(work_dmdif_match),
++	},
++};
++
++module_platform_driver(work_dmdif_driver);
++
++MODULE_DESCRIPTION("Driver for demodulator interface on WORK92107");
++MODULE_AUTHOR("Roland Stigge <roland.stigge@work-microwave.de>");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/misc/work92107/dmdifdev.c b/drivers/misc/work92107/dmdifdev.c
+new file mode 100644
+index 000000000000..0dbc22172ddb
+--- /dev/null
++++ b/drivers/misc/work92107/dmdifdev.c
+@@ -0,0 +1,47 @@
++/*
++ * Dmd interface - dummy device
++ *
++ * Author: Roland Stigge <roland.stigge@work-microwave.de>
++ */
++
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/dma-mapping.h>
++#include <linux/dmaengine.h>
++#include <linux/miscdevice.h>
++#include <linux/device.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/slab.h>
++#include <linux/stat.h>
++#include <linux/fs.h>
++#include <linux/io-mapping.h>
++#include <linux/platform_device.h>
++
++#define DRV_NAME "work-dmdif"
++
++static struct platform_device *pdev;
++
++static int __init dmdifdev_init(void)
++{
++	printk("dmdifdev init()\n");
++	
++	pdev = platform_device_alloc(DRV_NAME, 1);
++
++	platform_device_add(pdev);
++
++	return 0;
++}
++
++static void __exit dmdifdev_exit(void) {
++	printk("dmdifdev exit()\n");
++	platform_device_del(pdev);
++	kfree(pdev);
++}
++
++module_init(dmdifdev_init);
++module_exit(dmdifdev_exit);
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("Roland Stigge <roland.stigge@work-microwave.de>");
++
+diff --git a/drivers/misc/work92107/satif.c b/drivers/misc/work92107/satif.c
+new file mode 100644
+index 000000000000..e7871c0f5fbc
+--- /dev/null
++++ b/drivers/misc/work92107/satif.c
+@@ -0,0 +1,545 @@
++/*
++ * satif.c -- Satellite interface driver
++ *
++ * Copyright (C) 2013 WORK Microwave GmbH 
++ */
++
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/interrupt.h>
++#include <linux/platform_device.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/delay.h>
++#include <linux/device.h>
++#include <linux/sched.h>
++#include <linux/stat.h>
++#include <linux/fs.h>
++#include <linux/gpio.h>
++#include <linux/poll.h>
++#include <linux/of.h>
++#include <linux/of_net.h>
++#include <linux/miscdevice.h>
++#include <linux/mm.h>
++#include <linux/vmalloc.h>
++#include <linux/skbuff.h>
++#include <linux/etherdevice.h>
++#include <linux/netdevice.h>
++#include <linux/ethtool.h>
++#include <linux/if_arp.h>
++#include <linux/rtnetlink.h>
++#include <linux/version.h>
++#include <linux/pagemap.h>
++#include <linux/highmem.h>
++
++#define DRV_NAME "work-satif"
++#define DRV_VERSION "1.00"
++
++#define NAPI_WEIGHT 16
++
++#define SATIF_CMD_SET_USER_BUFFER 1234
++
++// Maximum is defined by CONFIG_FORCE_MAX_ZONEORDER, currently up to 64Mb
++#define SATIF_MMAP_SIZE (64 * 1024 * 1024)   // must be multiples of PAGE_SIZE (4096)!!
++// TODO: Calculate according to 'sizeof(satif_packet)'
++#define FIX_PKT_COUNT   (4096)
++#define FIX_PKT_MASK    (FIX_PKT_COUNT-1)
++
++
++// TODO: Add wait-queue for poll&sleep
++// TODO: Add IPv6
++// TODO: if 'if(x>y) x=0' instead of MASK -> can use full 64Mb buffer
++
++static struct miscdevice miscdev;
++
++static enum rx_handler_result sat_rx_handler(struct sk_buff **pskb);
++
++
++
++struct satif_packet {
++	int size;
++	char reserved[28];
++	char frame[9600 + 128];
++};
++
++struct satif_module_data {
++	struct platform_device *pdev;
++	struct net_device *ndev;
++	spinlock_t lock;
++	struct napi_struct napi;
++	u32 msg_enable;
++
++	int mmap_handle_cnt;		// increased on mmap(...)
++	int file_handle_cnt;		// increased on open(...)
++
++	struct satif_packet *buf;
++	int                  buf_write_offset;		// points to the next frame
++//	wait_queue_head_t    wait_q;
++};
++
++static struct satif_module_data *module_data = NULL;
++
++
++
++
++
++
++
++
++/* keep track of how many times it is mmapped */
++static void mmap_open(struct vm_area_struct *vma) {
++	struct satif_module_data *module_data = (struct satif_module_data *)vma->vm_private_data;
++	module_data->mmap_handle_cnt++;
++}
++
++static void mmap_close(struct vm_area_struct *vma) {
++	struct satif_module_data *module_data = (struct satif_module_data *)vma->vm_private_data;
++	module_data->mmap_handle_cnt--;
++}
++
++/* called to map area initially */
++static int mmap_fault(struct vm_fault *vmf) {
++	struct satif_module_data *info = (struct satif_module_data *)vmf->vma->vm_private_data;
++	pgoff_t pgoff = vmf->pgoff;
++	struct page *page;
++
++	if (info == NULL || info->buf == NULL) {
++		printk(KERN_ERR "satif: no data!\n");
++		return VM_FAULT_OOM;
++	}
++
++	if ((pgoff << PAGE_SHIFT) > SATIF_MMAP_SIZE) {
++		printk(KERN_ERR "%s: At given offset extends mapped area!\n", __func__);
++		return VM_FAULT_OOM;
++	}
++
++	page = virt_to_page((char*)(info->buf) + (pgoff << PAGE_SHIFT));
++	if (!page) {
++		printk(KERN_ERR "%s: Failed to map offset 0x%lx!\n", __func__, (pgoff << PAGE_SHIFT));
++		return VM_FAULT_SIGBUS;
++	}
++	
++	/* increment the reference count of this page */
++	get_page(page);
++	vmf->page = page;
++
++	return 0;
++}
++
++static struct vm_operations_struct mmap_vm_ops = {
++	.open = mmap_open,
++	.close = mmap_close,
++	.fault = mmap_fault,
++};
++
++
++
++
++
++
++
++
++static int fop_mmap(struct file *f, struct vm_area_struct *vma) {
++	struct satif_module_data *module_data = (struct satif_module_data *)f->private_data;
++	unsigned long size = vma->vm_end - vma->vm_start;
++
++	if (size != SATIF_MMAP_SIZE) {
++		printk(KERN_ERR "Memory map does not cover buffer of %d bytes!\n", SATIF_MMAP_SIZE);
++		return -EINVAL;
++	}
++	if (module_data->buf != NULL) {
++		printk(KERN_ERR "%s(): Buffer is not NULL!\n", __func__);
++	}
++
++//	init_waitqueue_head(&module_data->wait_q);
++
++	printk(KERN_ERR "%s() WORK: Allocating %d bytes!\n", __func__, SATIF_MMAP_SIZE);
++	module_data->buf = (void *)kzalloc(SATIF_MMAP_SIZE, GFP_KERNEL);
++	if (module_data->buf == NULL) {
++		printk(KERN_ERR "%s(): could not allocate buffer.\n", __func__);
++		return -ENOMEM;
++	}
++	//module_data->buf_size = SATIF_MMAP_SIZE / sizeof(struct satif_packet);
++	module_data->buf_write_offset = 0;
++
++	vma->vm_ops = &mmap_vm_ops;
++	vma->vm_private_data = module_data;
++	mmap_open(vma);
++
++	return 0;
++}
++
++static int fop_open(struct inode *in, struct file *f) {
++	if (MINOR(in->i_rdev) != miscdev.minor) {
++		return -ENOENT;
++	}
++	if (module_data->file_handle_cnt != 0) {
++		printk(KERN_ERR "Cannot open satif twice!\n");
++		return -EEXIST;
++	}
++	module_data->file_handle_cnt++;
++
++	f->private_data = module_data;
++
++	return 0;
++}
++
++static int fop_close(struct inode *in, struct file *f) {
++	struct satif_module_data *module_data = f->private_data;
++
++	if (module_data->buf != NULL) {
++		printk(KERN_ERR "%s() WORK: Freeing %d bytes!\n", __func__, SATIF_MMAP_SIZE);
++		kfree(module_data->buf);
++		module_data->buf = NULL;
++	}
++
++	if (MINOR(in->i_rdev) != miscdev.minor) {
++		printk("work-satif: fop_close(): Called on bad minor number.\n");
++		return -EBADF;
++	}
++	f->private_data = NULL;
++
++	module_data->file_handle_cnt --;
++	return 0;
++}
++
++static ssize_t fop_read(struct file *f, char *buf, size_t n, loff_t *offset) {
++	return 0;
++}
++
++static unsigned int fop_poll(struct file *f, struct poll_table_struct *pt) {
++//	struct satif_module_data *module_data = f->private_data;
++//	poll_wait(f, &module_data->wait_q, pt);
++
++	return POLLIN | POLLRDNORM;
++}
++
++
++
++long fop_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
++	int rv = -EINVAL;
++
++#if 0
++	int value;
++	if (get_user(value, (int __user *)arg) != 0) {
++		printk(KERN_ERR "%s: Failed to copy integer from user-space!\n", __func__);
++		return -EINVAL;
++	}
++#endif
++
++	switch (cmd) {
++		default:
++			printk(KERN_ERR "%s: Failed to handle cmd %d!\n", __func__, cmd);
++			rv = -EINVAL;
++			break;
++	}
++
++	return rv;
++}
++
++static struct file_operations fops = {
++	.open = fop_open,
++	.release = fop_close,
++	.mmap = fop_mmap,
++	.read = fop_read,
++	.poll = fop_poll,
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35))
++	.ioctl = fop_ioctl
++#else
++	.unlocked_ioctl = fop_ioctl,
++#endif
++};
++
++static struct miscdevice miscdev = {
++	.name = DRV_NAME,
++	.nodename = DRV_NAME,
++	.minor = MISC_DYNAMIC_MINOR,
++	.fops = &fops,
++	.mode = 0644,
++};
++
++static int sat_eth_open(struct net_device *ndev)
++{
++	struct satif_module_data *module_data = netdev_priv(ndev);
++
++	if (netif_msg_ifup(module_data))
++		dev_dbg(&module_data->pdev->dev, "enabling %s\n", ndev->name);
++
++	netif_start_queue(ndev);
++	napi_enable(&module_data->napi);
++
++	netif_carrier_on(ndev);
++
++	return 0;
++}
++
++static int sat_eth_close(struct net_device *ndev)
++{
++	//unsigned long flags;
++	struct satif_module_data *module_data = netdev_priv(ndev);
++
++	if (netif_msg_ifdown(module_data))
++		dev_dbg(&module_data->pdev->dev, "shutting down %s\n", ndev->name);
++
++	napi_disable(&module_data->napi);
++	netif_stop_queue(ndev);
++
++	netif_carrier_off(ndev);
++
++	return 0;
++}
++
++static int sat_eth_start_xmit(struct sk_buff *skb, struct net_device *ndev)
++{
++	/* This method is usually used to write data to the NIC hardware */
++
++	dev_kfree_skb(skb);
++	return NETDEV_TX_OK;
++}
++
++static void sat_eth_set_multicast_list(struct net_device *ndev)
++{
++}
++
++static int sat_eth_ioctl(struct net_device *ndev, struct ifreq *req, int cmd)
++{
++	if (!netif_running(ndev))
++		return -EINVAL;
++	return 0;
++}
++
++static int sat_set_mac_address(struct net_device *ndev, void *p)
++{
++	struct sockaddr *addr = p;
++
++	if (!is_valid_ether_addr(addr->sa_data))
++		return -EADDRNOTAVAIL;
++	memcpy(ndev->dev_addr, addr->sa_data, ETH_ALEN);
++
++	return 0;
++}
++
++/*
++ * Ethtool ops
++ */
++static void sat_eth_ethtool_getdrvinfo(struct net_device *ndev,
++	struct ethtool_drvinfo *info)
++{
++	strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
++	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
++	strlcpy(info->bus_info, dev_name(ndev->dev.parent), sizeof(info->bus_info));
++}
++
++static u32 sat_eth_ethtool_getmsglevel(struct net_device *ndev)
++{
++	struct satif_module_data *module_data = netdev_priv(ndev);
++	return module_data->msg_enable;
++}
++
++static void sat_eth_ethtool_setmsglevel(struct net_device *ndev, u32 level)
++{
++	struct satif_module_data *module_data = netdev_priv(ndev);
++	module_data->msg_enable = level;
++}
++
++static int sat_eth_ethtool_getsettings(struct net_device *ndev,
++	struct ethtool_cmd *cmd)
++{
++	cmd->supported          = 0;
++	cmd->advertising        = 0;
++	ethtool_cmd_speed_set(cmd, SPEED_10);
++	cmd->duplex             = DUPLEX_FULL;
++	cmd->port               = PORT_TP;
++	cmd->phy_address        = 0;
++	cmd->transceiver        = XCVR_INTERNAL;
++	cmd->autoneg            = AUTONEG_DISABLE;
++	cmd->maxtxpkt           = 0;
++	cmd->maxrxpkt           = 0;
++	return 0;
++}
++
++static const struct ethtool_ops sat_eth_ethtool_ops = {
++	.get_drvinfo    = sat_eth_ethtool_getdrvinfo,
++	.get_settings   = sat_eth_ethtool_getsettings,
++	.get_msglevel   = sat_eth_ethtool_getmsglevel,
++	.set_msglevel   = sat_eth_ethtool_setmsglevel,
++	.get_link       = ethtool_op_get_link,
++};
++
++static const struct net_device_ops sat_netdev_ops = {
++	.ndo_open               = sat_eth_open,
++	.ndo_stop               = sat_eth_close,
++	.ndo_start_xmit         = sat_eth_start_xmit,
++	.ndo_set_rx_mode        = sat_eth_set_multicast_list,
++	.ndo_do_ioctl           = sat_eth_ioctl,
++	.ndo_set_mac_address    = sat_set_mac_address,
++	.ndo_validate_addr      = eth_validate_addr,
++	.ndo_change_mtu         = eth_change_mtu,
++};
++
++static int sat_eth_poll(struct napi_struct *napi, int budget)
++{
++	int rx_done = 0;
++	return rx_done;
++}
++
++
++static enum rx_handler_result sat_rx_handler(struct sk_buff **pskb) {
++	struct sk_buff *skb = *pskb;
++	struct satif_module_data *module_data = netdev_priv(skb->dev);
++	struct satif_packet * pkg = NULL;
++	enum rx_handler_result rv;
++
++	static u64 lastprint=0, dropped=0, droppedbytes=0;
++	u64 end = ktime_get_ns();
++
++	if (unlikely(skb->pkt_type == PACKET_LOOPBACK)) {
++		rv = RX_HANDLER_PASS;
++	}
++	else if (unlikely(module_data->mmap_handle_cnt < 1) || module_data->buf == NULL) {
++		rv = RX_HANDLER_PASS;
++	}
++	else {
++		pkg = &module_data->buf[module_data->buf_write_offset];
++		if (pkg->size == 0) {
++			pkg->size = skb->len;
++			skb_copy_from_linear_data(skb, pkg->frame, pkg->size);
++
++			module_data->buf_write_offset = (module_data->buf_write_offset+1) & FIX_PKT_MASK;
++		}
++		else {
++			dropped++;
++			droppedbytes += skb->len;
++		}
++
++//		wake_up(&module_data->wait_q);
++		rv = RX_HANDLER_CONSUMED;
++
++		kfree_skb(skb);
++
++
++		// Print when packets are dropped, but not more often then every 8 seconds
++		if ((lastprint >> 33) != (end >> 33) && dropped > 0) {
++			lastprint = end;
++			printk(KERN_ERR "Dropped %llu packets (%llu bytes) because Userspace application is "
++			                "too slow!\n", dropped, droppedbytes);
++			dropped=0;
++			droppedbytes=0;
++		}
++	}
++
++	return rv;
++}
++
++static int rx_data = 0;
++
++static int work_satif_probe(struct platform_device *pdev) {
++	int result;
++	struct net_device *ndev;
++
++	result = misc_register(&miscdev);
++	if (result != 0) {
++		printk("work_satif: Error on registering device\n");
++		goto fail1;
++	}
++
++#if 1
++	ndev = alloc_etherdev(sizeof(struct satif_module_data));
++	if (!ndev) {
++		dev_err(&pdev->dev, "could not allocate device.\n");
++		result = -ENOMEM;
++		goto fail1;
++	}
++
++	SET_NETDEV_DEV(ndev, &pdev->dev);
++
++	module_data = netdev_priv(ndev);
++	module_data->pdev = pdev;
++	module_data->ndev = ndev;
++
++	ether_setup(ndev);
++	strcpy(ndev->name, "sat%d");
++
++	ndev->hard_header_len = 0;
++	ndev->addr_len = 6;
++	ndev->type = ARPHRD_NONE;
++	ndev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
++
++	ndev->netdev_ops = &sat_netdev_ops;
++	ndev->ethtool_ops = &sat_eth_ethtool_ops;
++	ndev->watchdog_timeo = msecs_to_jiffies(2500);
++
++	rtnl_lock();
++	if (netdev_rx_handler_register(ndev, sat_rx_handler, &rx_data) != 0) {
++		dev_err(&pdev->dev, "could not register rx_handler!\n");
++		result = -EBUSY;
++		goto fail1;
++	}
++	rtnl_unlock();
++
++#ifdef CONFIG_OF_NET
++	if (!is_valid_ether_addr(ndev->dev_addr)) {
++		const char *macaddr = of_get_mac_address(pdev->dev.of_node);
++		if (macaddr)
++		        memcpy(ndev->dev_addr, macaddr, ETH_ALEN);
++	}
++#endif
++	if (!is_valid_ether_addr(ndev->dev_addr))
++		eth_hw_addr_random(ndev);
++
++	module_data->msg_enable = NETIF_MSG_LINK;
++
++	netif_napi_add(ndev, &module_data->napi, sat_eth_poll, NAPI_WEIGHT);
++
++	result = register_netdev(ndev);
++	if (result) {
++		dev_err(&pdev->dev, "Cannot register net device, aborting.\n");
++		goto fail1;
++	}
++	platform_set_drvdata(pdev, ndev);
++
++	device_init_wakeup(&pdev->dev, 1);
++	device_set_wakeup_enable(&pdev->dev, 0);
++#endif
++
++	printk("WORK satif registered successfully\n");
++
++	return 0;
++fail1:
++	return result;
++}
++
++static int work_satif_remove(struct platform_device *pdev) {
++	struct net_device *ndev = platform_get_drvdata(pdev);
++
++	unregister_netdev(ndev);
++	platform_set_drvdata(pdev, NULL);
++
++	free_netdev(ndev);
++
++	misc_deregister(&miscdev);
++	printk("WORK satif driver unloaded\n");
++
++	return 0;
++}
++
++static const struct of_device_id work_satif_match[] = {
++	{ .compatible = "work,satif" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, work_satif_match);
++
++static struct platform_driver work_satif_driver = {
++	.probe  = work_satif_probe,
++	.remove = work_satif_remove,
++	.driver = {
++		.name = DRV_NAME,
++		.of_match_table = of_match_ptr(work_satif_match),
++	},
++};
++
++module_platform_driver(work_satif_driver);
++
++MODULE_DESCRIPTION("Driver for satellite interface on WORK92107");
++MODULE_AUTHOR("Roland Stigge <roland.stigge@work-microwave.de>");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/misc/work92107/satifdev.c b/drivers/misc/work92107/satifdev.c
+new file mode 100644
+index 000000000000..817288ad791d
+--- /dev/null
++++ b/drivers/misc/work92107/satifdev.c
+@@ -0,0 +1,47 @@
++/*
++ * Sat interface - dummy device
++ *
++ * Author: Roland Stigge <roland.stigge@work-microwave.de>
++ */
++
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/dma-mapping.h>
++#include <linux/dmaengine.h>
++#include <linux/miscdevice.h>
++#include <linux/device.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/slab.h>
++#include <linux/stat.h>
++#include <linux/fs.h>
++#include <linux/io-mapping.h>
++#include <linux/platform_device.h>
++
++#define DRV_NAME "work-satif"
++
++static struct platform_device *pdev;
++
++static int __init satifdev_init(void)
++{
++	printk("satifdev init()\n");
++	
++	pdev = platform_device_alloc(DRV_NAME, 1);
++
++	platform_device_add(pdev);
++
++	return 0;
++}
++
++static void __exit satifdev_exit(void) {
++	printk("satifdev exit()\n");
++	platform_device_del(pdev);
++	kfree(pdev);
++}
++
++module_init(satifdev_init);
++module_exit(satifdev_exit);
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("Roland Stigge <roland.stigge@work-microwave.de>");
++
