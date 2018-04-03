@@ -237,9 +237,9 @@ index 5aa8147..e13c236 100644
 +	unsigned char f_mac[ETH_ALEN];  // Device MAC
 +	__be32 f_ipv4;                  // Device IPv4
 +	__be16 tsi_dport1;              // UDP port for TSI Stream 1
-+	__be32 tsi_mult_addr1;          // Multicast IPv4 for TSI Stream 1
++	__be32 tsi_dest_addr1;          // Destination IPv4 for TSI Stream 1 (unicast and multicast)
 +	__be16 tsi_dport2;              // UDP port for TSI Stream 2
-+	__be32 tsi_mult_addr2;          // Multicast IPv4 for TSI Stream 2
++	__be32 tsi_dest_addr2;          // Destination IPv4 for TSI Stream 2 (unicast and multicast)
  };
  
  
@@ -248,7 +248,7 @@ new file mode 100644
 index 0000000..586fabd
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,688 @@
+@@ -0,0 +1,701 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -514,27 +514,27 @@ index 0000000..586fabd
 +
 +
 +
-+static int work_tsi_mult_addr1_open(struct inode *node, struct file *file) {
++static int work_tsi_dest_addr1_open(struct inode *node, struct file *file) {
 +	return 0;
 +}
-+static ssize_t work_tsi_mult_addr1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++static ssize_t work_tsi_dest_addr1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
 +	if (*ppos != 0) return 0;
-+	return work_ipv4_to_string(&priv->tsi_mult_addr1, buf, size);
++	return work_ipv4_to_string(&priv->tsi_dest_addr1, buf, size);
 +}
-+static ssize_t work_tsi_mult_addr1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++static ssize_t work_tsi_dest_addr1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	return work_string_to_ipv4(&priv->tsi_mult_addr1, buf, size);
++	return work_string_to_ipv4(&priv->tsi_dest_addr1, buf, size);
 +}
-+static int work_tsi_mult_addr1_close(struct inode *inode, struct file *file) {
++static int work_tsi_dest_addr1_close(struct inode *inode, struct file *file) {
 +	return 0;
 +}
 +
-+static const struct file_operations work_tsi_mult_addr1_fops = {
-+	.open = &work_tsi_mult_addr1_open,
-+	.read = &work_tsi_mult_addr1_read,
-+	.write = &work_tsi_mult_addr1_write,
-+	.release = &work_tsi_mult_addr1_close,
++static const struct file_operations work_tsi_dest_addr1_fops = {
++	.open = &work_tsi_dest_addr1_open,
++	.read = &work_tsi_dest_addr1_read,
++	.write = &work_tsi_dest_addr1_write,
++	.release = &work_tsi_dest_addr1_close,
 +};
 +
 +
@@ -580,27 +580,27 @@ index 0000000..586fabd
 +
 +
 +
-+static int work_tsi_mult_addr2_open(struct inode *node, struct file *file) {
++static int work_tsi_dest_addr2_open(struct inode *node, struct file *file) {
 +	return 0;
 +}
-+static ssize_t work_tsi_mult_addr2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++static ssize_t work_tsi_dest_addr2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
 +	if (*ppos != 0) return 0;
-+	return work_ipv4_to_string(&priv->tsi_mult_addr2, buf, size);
++	return work_ipv4_to_string(&priv->tsi_dest_addr2, buf, size);
 +}
-+static ssize_t work_tsi_mult_addr2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++static ssize_t work_tsi_dest_addr2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	return work_string_to_ipv4(&priv->tsi_mult_addr2, buf, size);
++	return work_string_to_ipv4(&priv->tsi_dest_addr2, buf, size);
 +}
-+static int work_tsi_mult_addr2_close(struct inode *inode, struct file *file) {
++static int work_tsi_dest_addr2_close(struct inode *inode, struct file *file) {
 +	return 0;
 +}
 +
-+static const struct file_operations work_tsi_mult_addr2_fops = {
-+	.open = &work_tsi_mult_addr2_open,
-+	.read = &work_tsi_mult_addr2_read,
-+	.write = &work_tsi_mult_addr2_write,
-+	.release = &work_tsi_mult_addr2_close,
++static const struct file_operations work_tsi_dest_addr2_fops = {
++	.open = &work_tsi_dest_addr2_open,
++	.read = &work_tsi_dest_addr2_read,
++	.write = &work_tsi_dest_addr2_write,
++	.release = &work_tsi_dest_addr2_close,
 +};
 +
 +
@@ -642,8 +642,8 @@ index 0000000..586fabd
 +	else {
 +		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
 +	}
-+	sprintf(buf, "work_%s_tsi_mult_addr1", dev->name);
-+	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_mult_addr1_fops, priv)) {
++	sprintf(buf, "work_%s_tsi_dest_addr1", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr1_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
@@ -658,8 +658,8 @@ index 0000000..586fabd
 +	else {
 +		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
 +	}
-+	sprintf(buf, "work_%s_tsi_mult_addr2", dev->name);
-+	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_mult_addr2_fops, priv)) {
++	sprintf(buf, "work_%s_tsi_dest_addr2", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr2_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
@@ -693,54 +693,67 @@ index 0000000..586fabd
 +	return (addr & htonl(0xf0000000)) == htonl(0xe0000000);
 +}
 +
++/** Returns true when address is non-routed (local) multicast */
++static inline bool ipv4_is_multicast_local(__be32 addr) {
++	return (addr & htonl(0xffffff00)) == htonl(0xe0000000);  // matches for 224.0.0.*
++}
++
 +/** Returns true when address is multicast address (not broadcast) */
 +static inline bool ether_is_multicast_only(const char* mac) {
 +	return mac[0] == 0x01;
 +}
 +
-+static inline int work_classify_packet(const struct gfar_private *priv, const char* eth_pkt) {
-+	struct ethhdr *eth = (struct ethhdr *) (eth_pkt);
++static inline bool matches_tsi1_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == priv->tsi_dport1;
++}
 +
-+	bool matches_mac = ether_is_multicast_only(eth->h_dest) || ether_addr_equal(eth->h_dest, priv->f_mac);
++static inline bool matches_tsi1_addr(const struct gfar_private *priv, __be32 addr) {
++	return addr == priv->tsi_dest_addr1;
++}
++
++static inline bool matches_tsi2_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == priv->tsi_dport2;
++}
++
++static inline bool matches_tsi2_addr(const struct gfar_private *priv, __be32 addr) {
++	return addr == priv->tsi_dest_addr2;
++}
++
++static inline bool ipv4_is_our_ip(const struct gfar_private *priv, __be32 addr) {
++	return addr == priv->f_ipv4;
++}
++
++static inline int work_classify_packet(const struct gfar_private *priv, const char* eth_pkt) {
++
++	const struct ethhdr *eth = (struct ethhdr *) (eth_pkt);
++	const bool matches_mac = ether_is_multicast_only(eth->h_dest) || ether_addr_equal(eth->h_dest, priv->f_mac);
 +
 +	// WORK:  Handle only IP packets where MAC=multicast or MAC=our
 +	if (eth->h_proto == ETH_P_IP && matches_mac) {
-+		struct iphdr *ipv4 = (struct iphdr *) (eth_pkt + ETH_HLEN);
 +
-+		bool matches_our_ip = ipv4->daddr == priv->f_ipv4;
-+		bool matches_mul_ip = ipv4_is_multicast_only(ipv4->daddr);
++		const struct iphdr *ipv4 = (struct iphdr *) (eth_pkt + ETH_HLEN);
 +
-+		// TSI:  If UDP addressed with IP=our or IP=multicast    (must be checked before IP-BROADCAST)
-+		if (ipv4->protocol == IPPROTO_UDP && (matches_our_ip || matches_mul_ip)) {
-+			struct udphdr *udp = (struct udphdr *) (ipv4 + 1);
++		// TSI:  TSoIP is only UDP
++		if (ipv4->protocol == IPPROTO_UDP) {
 +
-+			// TSI1:  if TSI1 is enabled
-+			if (priv->tsi_dport1 != 0) {
++			const struct udphdr *udp = (struct udphdr *) (ipv4 + 1);
 +
-+				bool matches_tsi1_port = ntohs(udp->dest) == priv->tsi_dport1;
-+				bool matches_tsi1_addr = ipv4->daddr == priv->tsi_mult_addr1;
++			// TSI1:  if TSI1 is enabled and PORT=matching and IP=matching-TSI1-IP
++			if (priv->tsi_dport1 != 0 && matches_tsi1_port(priv, udp->dest) && matches_tsi1_addr(priv, ipv4->daddr)) {
 +
-+				// TSI1:  if PORT=matching and ( IP=our or IP=matching-multicast )
-+				if (matches_tsi1_port && (matches_our_ip || matches_tsi1_addr)) {
-+					return NET_BYPASS_STATUS_USER_TSI1_PACKET;
-+				}
++				return NET_BYPASS_STATUS_USER_TSI1_PACKET;
 +			}
 +
-+			// TSI2:  if TSI2 is enabled
-+			if (priv->tsi_dport2 != 0) {
++			// TSI2:  if TSI2 is enabled and PORT=matching and IP=matching-TSI2-IP
++			if (priv->tsi_dport2 != 0 && matches_tsi2_port(priv, udp->dest) && matches_tsi2_addr(priv, ipv4->daddr)) {
 +
-+				bool matches_tsi2_port = ntohs(udp->dest) == priv->tsi_dport2;
-+				bool matches_tsi2_addr = ipv4->daddr == priv->tsi_mult_addr2;
-+
-+				// TSI2:  if PORT=matching and ( IP=our or IP=matching-multicast )
-+				if (matches_tsi2_port && (matches_our_ip || matches_tsi2_addr)) {
-+					return NET_BYPASS_STATUS_USER_TSI2_PACKET;
-+				}
++				return NET_BYPASS_STATUS_USER_TSI2_PACKET;
 +			}
 +		}
 +
-+		// IP-BROADCAST:  If addressed to IP=!our or IP=multicast   (must be checked after TSI)
-+		if (!matches_our_ip || matches_mul_ip) {
++
++		// IP-BROADCAST:  If addressed to IP=!our
++		if (ipv4_is_our_ip(priv, ipv4->daddr) == false && ipv4_is_multicast_local(ipv4->daddr) == false) {
 +			return NET_BYPASS_STATUS_USER_IP_TRANSFER;
 +		}
 +	}
