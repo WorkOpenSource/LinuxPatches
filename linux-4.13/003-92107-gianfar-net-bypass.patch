@@ -248,7 +248,7 @@ new file mode 100644
 index 0000000..586fabd
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,682 @@
+@@ -0,0 +1,688 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -749,6 +749,8 @@ index 0000000..586fabd
 +}
 +
 +int work_allocate_buffer(struct gfar_priv_rx_q * rx_queue) {
++	int i;
++
 +	rx_queue->rx_pktbuff = kmalloc_array(rx_queue->rx_ring_size, sizeof(rx_queue->rx_pktbuff[0]), GFP_KERNEL | __GFP_ZERO);
 +	if (rx_queue->rx_pktbuff == NULL) {
 +		printk(KERN_ERR "%s:%d Failed to allocate %d bytes!\n", __FILE__, __LINE__,
@@ -757,6 +759,11 @@ index 0000000..586fabd
 +	}
 +
 +	memset(rx_queue->rx_pktbuff, 0, rx_queue->rx_ring_size * sizeof(rx_queue->rx_pktbuff[0]));
++
++	for (i = 0; i < rx_queue->rx_ring_size; i++) {
++		struct work_priv_rx_pkt *pktbuff = &rx_queue->rx_pktbuff[i];
++		pktbuff->status = NET_BYPASS_STATUS_FREE_PACKET;
++	}
 +	return 0;
 +}
 +
@@ -834,7 +841,7 @@ index 0000000..586fabd
 +
 +		// Do not reuse buffer, when it's still in use by the application
 +		if (pktbuff->status != NET_BYPASS_STATUS_FREE_PACKET) {
-+//			printk_10s(KERN_ERR "Status(%d of %d) is %d instead of %d (free)!\n",
++//			printk_10s(KERN_ERR "Status(%d of %d) is 0x%x instead of 0x%x (free)!\n",
 +//			           i, i+alloc_cnt+1, pktbuff->status, NET_BYPASS_STATUS_FREE_PACKET);
 +			rx_queue->starving = 1;
 +			break;
@@ -876,11 +883,11 @@ index 0000000..586fabd
 +	unsigned int size = lstatus & BD_LENGTH_MASK;
 +
 +	if (unlikely(pktbuff->status != NET_BYPASS_STATUS_PACKET_IN_DMA)) {
-+		if (pktbuff->status == NET_BYPASS_STATUS_USER_IP_TRANSFER) {
++		if ((pktbuff->status & NET_BYPASS_MASK_USER_KERNEL) > 0) {
 +			printk_10s(KERN_NOTICE "Dropping packet because userspace is too slow!\n");
 +		}
 +		else {
-+//			printk_10s(KERN_ERR "ERROR: %s: status[%d]=%d instead of %d!\n", __func__,
++//			printk_10s(KERN_ERR "ERROR: %s: status[%d]=0x%x instead of 0x%x!\n", __func__,
 +//			       rx_queue->next_to_clean, pktbuff->status, NET_BYPASS_STATUS_PACKET_IN_DMA);
 +		}
 +		rx_queue->starving = 1;
@@ -908,15 +915,14 @@ index 0000000..586fabd
 +	pktbuff->status = work_classify_packet(priv, pktbuff->frame + pktbuff->offset);
 +
 +	switch (pktbuff->status) {
-+		case NET_BYPASS_STATUS_USER_TSI2_PACKET:
-+		case NET_BYPASS_STATUS_USER_TSI1_PACKET:
 +		case NET_BYPASS_STATUS_USER_IP_TRANSFER:
++		case NET_BYPASS_STATUS_USER_TSI1_PACKET:
++		case NET_BYPASS_STATUS_USER_TSI2_PACKET:
 +			// will be read by userspace
 +			break;
 +
 +		case NET_BYPASS_STATUS_FREE_PACKET:
 +		case NET_BYPASS_STATUS_PACKET_IN_DMA:
-+		case NET_BYPASS_STATUS_INVALID_PACKET:
 +			printk_10s(KERN_NOTICE "Invalid packet status from work_classify_packet(): %d\n", pktbuff->status);
 +			break;
 +
@@ -936,7 +942,7 @@ new file mode 100644
 index 0000000..6358960
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.h
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,106 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -997,28 +1003,38 @@ index 0000000..6358960
 +
 +
 +
-+#define WORK_JUMBO_BUFFER_SIZE                 9728
 +
-+// TODO: change to bitmask (which also fits the old defines)
-+#define NET_BYPASS_STATUS_USER_TSI2_PACKET     3
-+#define NET_BYPASS_STATUS_USER_TSI1_PACKET     2
-+#define NET_BYPASS_STATUS_USER_IP_TRANSFER     1
-+#define NET_BYPASS_STATUS_FREE_PACKET          0
-+#define NET_BYPASS_STATUS_PACKET_IN_DMA       -1
-+#define NET_BYPASS_STATUS_INVALID_PACKET      -101
-+#define NET_BYPASS_STATUS_HANDLED_BY_KERNEL   -102
++
++#define NET_BYPASS_MASK_USER                   0x0100    // packets with data for application
++#define NET_BYPASS_STATUS_USER_IP_TRANSFER     0x0101    // packets for IP transmission
++#define NET_BYPASS_STATUS_USER_TSI1_PACKET     0x0102    // TSoIP packets - stream 1
++#define NET_BYPASS_STATUS_USER_TSI2_PACKET     0x0103    // TSoIP packets - stream 2
++
++#define NET_BYPASS_MASK_KERNEL                 0x0200
++#define NET_BYPASS_STATUS_HANDLED_BY_KERNEL    0x0201     // packets for Linux/system
++
++#define NET_BYPASS_STATUS_FREE_PACKET          0x0401     // packets read-out by application
++
++#define NET_BYPASS_STATUS_PACKET_IN_DMA        0x0801     // packets waiting to be filled by DMA
++
++#define NET_BYPASS_MASK_USER_KERNEL            (NET_BYPASS_MASK_USER | NET_BYPASS_MASK_KERNEL)
++
++
++
++
++#define WORK_JUMBO_BUFFER_SIZE                 9728
 +
 +#define WORK_INVALID_SKBUFF ((struct sk_buff *)0x1)
 +
 +#define STARVING_RATE   (HZ/200)
 +
 +struct work_priv_rx_pkt {
-+	int status;
-+	int size;
-+	int offset;
++	uint32_t status;
++	int32_t size;
++	int32_t offset;
 +	dma_addr_t dma;
-+	char reserved[128-3*sizeof(int)-sizeof(dma_addr_t)];
-+	char frame[WORK_JUMBO_BUFFER_SIZE];
++	uint8_t reserved[128-3*sizeof(int)-sizeof(dma_addr_t)];
++	uint8_t frame[WORK_JUMBO_BUFFER_SIZE];
 +} __attribute__((packed));
 +
 +int work_create_fs(struct net_device *dev);
