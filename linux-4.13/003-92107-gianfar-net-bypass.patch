@@ -1,17 +1,5 @@
-diff --git a/drivers/net/ethernet/freescale/Makefile b/drivers/net/ethernet/freescale/Makefile
-index c46df5c..3ab44ed 100644
---- a/drivers/net/ethernet/freescale/Makefile
-+++ b/drivers/net/ethernet/freescale/Makefile
-@@ -15,6 +15,7 @@ obj-$(CONFIG_FSL_XGMAC_MDIO) += xgmac_mdio.o
- obj-$(CONFIG_GIANFAR) += gianfar_driver.o
- obj-$(CONFIG_PTP_1588_CLOCK_GIANFAR) += gianfar_ptp.o
- gianfar_driver-objs := gianfar.o \
-+		gianfar_work.o \
- 		gianfar_ethtool.o
- obj-$(CONFIG_UCC_GETH) += ucc_geth_driver.o
- ucc_geth_driver-objs := ucc_geth.o ucc_geth_ethtool.o
 diff --git a/drivers/net/ethernet/freescale/gianfar.c b/drivers/net/ethernet/freescale/gianfar.c
-index 5be52d8..d41161d 100644
+index 7f83700..b4f9e66 100644
 --- a/drivers/net/ethernet/freescale/gianfar.c
 +++ b/drivers/net/ethernet/freescale/gianfar.c
 @@ -152,7 +152,7 @@ MODULE_AUTHOR("Freescale Semiconductor, Inc");
@@ -99,7 +87,7 @@ index 5be52d8..d41161d 100644
  
  	/* Initialize the Minimum Frame Length Register */
  	gfar_write(&regs->minflr, MINFLR_INIT_SETTINGS);
-@@ -1463,6 +1487,15 @@ static int gfar_probe(struct platform_device *ofdev)
+@@ -1465,6 +1489,15 @@ static int gfar_probe(struct platform_device *ofdev)
  		netdev_info(dev, "TX BD ring size for Q[%d]: %d\n",
  			    i, priv->tx_queue[i]->tx_ring_size);
  
@@ -115,7 +103,7 @@ index 5be52d8..d41161d 100644
  	return 0;
  
  register_fail:
-@@ -2043,8 +2076,14 @@ static void free_skb_resources(struct gfar_private *priv)
+@@ -2050,8 +2083,14 @@ static void free_skb_resources(struct gfar_private *priv)
  
  	for (i = 0; i < priv->num_rx_queues; i++) {
  		rx_queue = priv->rx_queue[i];
@@ -130,7 +118,7 @@ index 5be52d8..d41161d 100644
  	}
  
  	dma_free_coherent(priv->dev,
-@@ -2783,7 +2822,7 @@ static bool gfar_new_page(struct gfar_priv_rx_q *rxq, struct gfar_rx_buff *rxb)
+@@ -2790,7 +2829,7 @@ static bool gfar_new_page(struct gfar_priv_rx_q *rxq, struct gfar_rx_buff *rxb)
  	return true;
  }
  
@@ -139,7 +127,7 @@ index 5be52d8..d41161d 100644
  {
  	struct gfar_private *priv = netdev_priv(rx_queue->ndev);
  	struct gfar_extra_stats *estats = &priv->extra_stats;
-@@ -3094,6 +3133,8 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3101,6 +3140,8 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  		u32 lstatus;
  
  		if (cleaned_cnt >= GFAR_RX_BUFF_ALLOC) {
@@ -148,7 +136,7 @@ index 5be52d8..d41161d 100644
  			gfar_alloc_rx_buffs(rx_queue, cleaned_cnt);
  			cleaned_cnt = 0;
  		}
-@@ -3106,10 +3147,19 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3113,10 +3154,19 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  		/* order rx buffer descriptor reads */
  		rmb();
  
@@ -168,7 +156,7 @@ index 5be52d8..d41161d 100644
  
  		cleaned_cnt++;
  		howmany++;
-@@ -3133,6 +3183,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3140,6 +3190,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  			continue;
  		}
  
@@ -180,7 +168,7 @@ index 5be52d8..d41161d 100644
  		/* Increment the number of packets */
  		total_pkts++;
  		total_bytes += skb->len;
-@@ -3153,8 +3208,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3160,8 +3215,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  	rx_queue->stats.rx_packets += total_pkts;
  	rx_queue->stats.rx_bytes += total_bytes;
  
@@ -193,7 +181,7 @@ index 5be52d8..d41161d 100644
  
  	/* Update Last Free RxBD pointer for LFC */
  	if (unlikely(priv->tx_actual_en)) {
-@@ -3772,6 +3830,10 @@ static const struct of_device_id gfar_match[] =
+@@ -3779,6 +3837,10 @@ static const struct of_device_id gfar_match[] =
  		.compatible = "gianfar",
  	},
  	{
@@ -205,7 +193,7 @@ index 5be52d8..d41161d 100644
  	},
  	{},
 diff --git a/drivers/net/ethernet/freescale/gianfar.h b/drivers/net/ethernet/freescale/gianfar.h
-index 5aa8147..e13c236 100644
+index 5aa8147..db1ab30 100644
 --- a/drivers/net/ethernet/freescale/gianfar.h
 +++ b/drivers/net/ethernet/freescale/gianfar.h
 @@ -46,6 +46,8 @@
@@ -229,7 +217,7 @@ index 5aa8147..e13c236 100644
  };
  
  enum gfar_irqinfo_id {
-@@ -1203,6 +1209,14 @@ struct gfar_private {
+@@ -1203,6 +1210,16 @@ struct gfar_private {
  	/*Filer table*/
  	unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
  	unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
@@ -241,15 +229,17 @@ index 5aa8147..e13c236 100644
 +	__be32 tsi_dest_addr1;          // Destination IPv4 for TSI Stream 1 (unicast and multicast)
 +	__be16 tsi_dport2;              // UDP port for TSI Stream 2
 +	__be32 tsi_dest_addr2;          // Destination IPv4 for TSI Stream 2 (unicast and multicast)
++	__be16 bbi_dport1;              // UPD port for BBI Stream 1
++	__be16 bbi_dport2;              // UPD port for BBI Stream 2
  };
  
  
 diff --git a/drivers/net/ethernet/freescale/gianfar_work.c b/drivers/net/ethernet/freescale/gianfar_work.c
 new file mode 100644
-index 0000000..586fabd
+index 0000000..5c641bb
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,707 @@
+@@ -0,0 +1,841 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -579,6 +569,103 @@ index 0000000..586fabd
 +};
 +
 +
++static int work_bbi_port1_open(struct inode *node, struct file *file) {
++	file->private_data = kmalloc(sizeof(int), GFP_KERNEL);
++	*((int*)file->private_data) = 0;
++	return 0;
++}
++
++static ssize_t work_bbi_port1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++struct gfar_private *priv = PDE_DATA(file_inode(file));
++__kernel_size_t strsize;
++
++if (*((int*)file->private_data) != 0) return 0;
++
++snprintf(buf, size-1, "%u", priv->bbi_dport1);
++buf[size-1] = '\0';
++
++strsize = strlen(buf);
++*((int*)file->private_data) = strsize;
++return strsize;
++}
++
++static ssize_t work_bbi_port1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++struct gfar_private *priv = PDE_DATA(file_inode(file));
++unsigned int dport_bbi;
++
++if(sscanf(buf, "%u", &dport_bbi)) {
++priv->bbi_dport1 = dport_bbi;
++return size;
++}
++else {
++printk(KERN_ERR "Error parsing BBI port1!\n");
++return -EINVAL;
++}
++}
++
++static int work_bbi_port1_close(struct inode *inode, struct file *file) {
++	if (file->private_data) {
++		kfree(file->private_data);
++		file->private_data = NULL;
++	}
++	return 0;
++}
++
++static const struct file_operations work_bbi_port1_fops = {
++		.open = &work_bbi_port1_open,
++		.read = &work_bbi_port1_read,
++		.write = &work_bbi_port1_write,
++		.release = &work_bbi_port1_close,
++};
++
++static int work_bbi_port2_open(struct inode *node, struct file *file) {
++	file->private_data = kmalloc(sizeof(int), GFP_KERNEL);
++	*((int*)file->private_data) = 0;
++	return 0;
++}
++
++static ssize_t work_bbi_port2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++struct gfar_private *priv = PDE_DATA(file_inode(file));
++__kernel_size_t strsize;
++
++if (*((int*)file->private_data) != 0) return 0;
++
++snprintf(buf, size-1, "%u", priv->bbi_dport1);
++buf[size-1] = '\0';
++
++strsize = strlen(buf);
++*((int*)file->private_data) = strsize;
++return strsize;
++}
++
++static ssize_t work_bbi_port2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++struct gfar_private *priv = PDE_DATA(file_inode(file));
++unsigned int dport_bbi;
++
++if(sscanf(buf, "%u", &dport_bbi)) {
++priv->bbi_dport1 = dport_bbi;
++return size;
++}
++else {
++printk(KERN_ERR "Error parsing BBI port2!\n");
++return -EINVAL;
++}
++}
++
++static int work_bbi_port2_close(struct inode *inode, struct file *file) {
++	if (file->private_data) {
++		kfree(file->private_data);
++		file->private_data = NULL;
++	}
++	return 0;
++}
++
++static const struct file_operations work_bbi_port2_fops = {
++		.open = &work_bbi_port2_open,
++		.read = &work_bbi_port2_read,
++		.write = &work_bbi_port2_write,
++		.release = &work_bbi_port2_close,
++};
 +
 +
 +static int work_tsi_dest_addr2_open(struct inode *node, struct file *file) {
@@ -645,6 +732,22 @@ index 0000000..586fabd
 +	}
 +	sprintf(buf, "work_%s_tsi_dest_addr1", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr1_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++	else {
++		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++	}
++			sprintf(buf, "work_%s_bbi_dport1", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_bbi_port1_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++	else {
++			printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++	}
++			sprintf(buf, "work_%s_bbi_dport2", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_bbi_port2_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
@@ -720,6 +823,14 @@ index 0000000..586fabd
 +	return addr == priv->tsi_dest_addr2;
 +}
 +
++static inline bool matches_bbi1_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == 22009;
++}
++
++static inline bool matches_bbi2_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == 22010;
++}
++
 +static inline bool ipv4_is_our_ip(const struct gfar_private *priv, __be32 addr) {
 +	return addr == priv->f_ipv4;
 +}
@@ -749,6 +860,17 @@ index 0000000..586fabd
 +			if (priv->tsi_dport2 != 0 && matches_tsi2_port(priv, udp->dest) && matches_tsi2_addr(priv, ipv4->daddr)) {
 +
 +				return NET_BYPASS_STATUS_USER_TSI2_PACKET;
++			}
++
++			// BBI1:  if BBI is enabled and PORT=matching
++			if (1 && matches_bbi1_port(priv, udp->dest)) {
++        printk_10s(KERN_ERR "GOT BBI1 PACKET !!!!!!!!!!!!!!!!!\n");
++				return NET_BYPASS_STATUS_USER_BBI1_PACKET;
++			}
++			// BBI2:  if BBI is enabled and PORT=matching
++			if (1 && matches_bbi2_port(priv, udp->dest)) {
++				printk_10s(KERN_ERR "GOT BBI2 PACKET !!!!!!!!!!!!!!!!!\n");
++				return NET_BYPASS_STATUS_USER_BBI2_PACKET;
 +			}
 +		}
 +
@@ -938,6 +1060,8 @@ index 0000000..586fabd
 +		case NET_BYPASS_STATUS_USER_IP_TRANSFER:
 +		case NET_BYPASS_STATUS_USER_TSI1_PACKET:
 +		case NET_BYPASS_STATUS_USER_TSI2_PACKET:
++		case NET_BYPASS_STATUS_USER_BBI1_PACKET:
++		case NET_BYPASS_STATUS_USER_BBI2_PACKET:
 +			// will be read by userspace
 +			break;
 +
@@ -959,10 +1083,10 @@ index 0000000..586fabd
 +
 diff --git a/drivers/net/ethernet/freescale/gianfar_work.h b/drivers/net/ethernet/freescale/gianfar_work.h
 new file mode 100644
-index 0000000..6358960
+index 0000000..b58b3ee
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.h
-@@ -0,0 +1,107 @@
+@@ -0,0 +1,109 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -1029,6 +1153,8 @@ index 0000000..6358960
 +#define NET_BYPASS_STATUS_USER_IP_TRANSFER     0x0101    // packets for IP transmission
 +#define NET_BYPASS_STATUS_USER_TSI1_PACKET     0x0102    // TSoIP packets - stream 1
 +#define NET_BYPASS_STATUS_USER_TSI2_PACKET     0x0103    // TSoIP packets - stream 2
++#define NET_BYPASS_STATUS_USER_BBI1_PACKET     0x0104    // BBoIP packets - stream 1
++#define NET_BYPASS_STATUS_USER_BBI2_PACKET     0x0105    // BBoIP packets - stream 2
 +
 +#define NET_BYPASS_MASK_KERNEL                 0x0200
 +#define NET_BYPASS_STATUS_HANDLED_BY_KERNEL    0x0201     // packets for Linux/system
