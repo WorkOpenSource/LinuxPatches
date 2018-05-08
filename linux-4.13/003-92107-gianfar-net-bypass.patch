@@ -1,3 +1,15 @@
+diff --git a/drivers/net/ethernet/freescale/Makefile b/drivers/net/ethernet/freescale/Makefile
+index ed8ad0f..5754d21 100644
+--- a/drivers/net/ethernet/freescale/Makefile
++++ b/drivers/net/ethernet/freescale/Makefile
+@@ -16,6 +16,7 @@ obj-$(CONFIG_FSL_XGMAC_MDIO) += xgmac_mdio.o
+ obj-$(CONFIG_GIANFAR) += gianfar_driver.o
+ obj-$(CONFIG_PTP_1588_CLOCK_GIANFAR) += gianfar_ptp.o
+ gianfar_driver-objs := gianfar.o \
++		gianfar_work.o \
+ 		gianfar_ethtool.o
+ obj-$(CONFIG_UCC_GETH) += ucc_geth_driver.o
+ ucc_geth_driver-objs := ucc_geth.o ucc_geth_ethtool.o
 diff --git a/drivers/net/ethernet/freescale/gianfar.c b/drivers/net/ethernet/freescale/gianfar.c
 index 7f83700..b4f9e66 100644
 --- a/drivers/net/ethernet/freescale/gianfar.c
@@ -236,10 +248,10 @@ index 5aa8147..db1ab30 100644
  
 diff --git a/drivers/net/ethernet/freescale/gianfar_work.c b/drivers/net/ethernet/freescale/gianfar_work.c
 new file mode 100644
-index 0000000..5c641bb
+index 0000000..ebd774d
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,841 @@
+@@ -0,0 +1,838 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -630,7 +642,7 @@ index 0000000..5c641bb
 +
 +if (*((int*)file->private_data) != 0) return 0;
 +
-+snprintf(buf, size-1, "%u", priv->bbi_dport1);
++snprintf(buf, size-1, "%u", priv->bbi_dport2);
 +buf[size-1] = '\0';
 +
 +strsize = strlen(buf);
@@ -643,7 +655,7 @@ index 0000000..5c641bb
 +unsigned int dport_bbi;
 +
 +if(sscanf(buf, "%u", &dport_bbi)) {
-+priv->bbi_dport1 = dport_bbi;
++priv->bbi_dport2 = dport_bbi;
 +return size;
 +}
 +else {
@@ -824,11 +836,11 @@ index 0000000..5c641bb
 +}
 +
 +static inline bool matches_bbi1_port(const struct gfar_private *priv, uint16_t port) {
-+	return ntohs(port) == 22009;
++	return ntohs(port) == priv->bbi_dport1;
 +}
 +
 +static inline bool matches_bbi2_port(const struct gfar_private *priv, uint16_t port) {
-+	return ntohs(port) == 22010;
++	return ntohs(port) == priv->bbi_dport2;
 +}
 +
 +static inline bool ipv4_is_our_ip(const struct gfar_private *priv, __be32 addr) {
@@ -842,7 +854,6 @@ index 0000000..5c641bb
 +
 +	// WORK:  Handle only IP packets where MAC=multicast or MAC=our
 +	if (eth->h_proto == ETH_P_IP && matches_mac) {
-+
 +		const struct iphdr *ipv4 = (struct iphdr *) (eth_pkt + ETH_HLEN);
 +
 +		// TSI:  TSoIP is only UDP
@@ -863,13 +874,11 @@ index 0000000..5c641bb
 +			}
 +
 +			// BBI1:  if BBI is enabled and PORT=matching
-+			if (1 && matches_bbi1_port(priv, udp->dest)) {
-+        printk_10s(KERN_ERR "GOT BBI1 PACKET !!!!!!!!!!!!!!!!!\n");
++			if (priv->bbi_dport1 != 0 && matches_bbi1_port(priv, udp->dest)) {
 +				return NET_BYPASS_STATUS_USER_BBI1_PACKET;
 +			}
 +			// BBI2:  if BBI is enabled and PORT=matching
-+			if (1 && matches_bbi2_port(priv, udp->dest)) {
-+				printk_10s(KERN_ERR "GOT BBI2 PACKET !!!!!!!!!!!!!!!!!\n");
++			if (priv->bbi_dport2 != 0 && matches_bbi2_port(priv, udp->dest)) {
 +				return NET_BYPASS_STATUS_USER_BBI2_PACKET;
 +			}
 +		}
