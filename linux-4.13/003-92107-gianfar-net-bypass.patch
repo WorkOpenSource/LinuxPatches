@@ -251,7 +251,7 @@ new file mode 100644
 index 0000000..ebd774d
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,838 @@
+@@ -0,0 +1,931 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -297,7 +297,19 @@ index 0000000..ebd774d
 +}
 +
 +static ssize_t work_buffer_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
-+	return 0;
++	struct gfar_private *priv = file->private_data;
++	struct gfar_priv_rx_q *rx_queue = priv->rx_queue[0];
++	size_t buf_size = rx_queue->rx_ring_size * sizeof(rx_queue->rx_pktbuff[0]);
++	size_t available = buf_size - *ppos;
++	size_t to_copy = size > available ? available : size;
++
++	if (*ppos >= buf_size) return 0;
++
++	memcpy(buf, (char*)(rx_queue->rx_pktbuff) + *ppos, to_copy);
++
++	*ppos += to_copy;
++
++	return to_copy;
 +}
 +
 +static int work_buffer_close(struct inode *inode, struct file *file) {
@@ -370,6 +382,78 @@ index 0000000..ebd774d
 +	.release = &work_buffer_close,
 +	.mmap = &work_buffer_mmap,
 +};
++
++
++
++
++
++
++
++static int work_next_to_use_open(struct inode *node, struct file *file) {
++	return 0;
++}
++static ssize_t work_next_to_use_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	struct gfar_priv_rx_q *rx_queue = priv->rx_queue[0];
++
++	if (*ppos != 0) return 0;
++
++	snprintf(buf, size-1, "%u", rx_queue->next_to_use);
++	buf[size-1] = '\0';
++
++	return strlen(buf);
++}
++static ssize_t work_next_to_use_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	return 0;
++}
++static int work_next_to_use_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_next_to_use_fops = {
++	.open = &work_next_to_use_open,
++	.read = &work_next_to_use_read,
++	.write = &work_next_to_use_write,
++	.release = &work_next_to_use_close,
++};
++
++
++
++
++
++
++
++
++static int work_next_to_clean_open(struct inode *node, struct file *file) {
++	return 0;
++}
++static ssize_t work_next_to_clean_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	struct gfar_priv_rx_q *rx_queue = priv->rx_queue[0];
++
++	if (*ppos != 0) return 0;
++
++	snprintf(buf, size-1, "%u", rx_queue->next_to_clean);
++	buf[size-1] = '\0';
++
++	return strlen(buf);
++}
++static ssize_t work_next_to_clean_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	return 0;
++}
++static int work_next_to_clean_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_next_to_clean_fops = {
++	.open = &work_next_to_clean_open,
++	.read = &work_next_to_clean_read,
++	.write = &work_next_to_clean_write,
++	.release = &work_next_to_clean_close,
++};
++
++
++
 +
 +
 +
@@ -718,6 +802,18 @@ index 0000000..ebd774d
 +	else {
 +		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
 +	}
++
++	sprintf(buf, "work_%s_next_to_use", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_next_to_use_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++	sprintf(buf, "work_%s_next_to_clean", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_next_to_clean_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++
 +	sprintf(buf, "work_%s_ipv4", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_ipv4_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
@@ -864,33 +960,33 @@ index 0000000..ebd774d
 +			// TSI1:  if TSI1 is enabled and PORT=matching and IP=matching-TSI1-IP
 +			if (priv->tsi_dport1 != 0 && matches_tsi1_port(priv, udp->dest) && matches_tsi1_addr(priv, ipv4->daddr)) {
 +
-+				return NET_BYPASS_STATUS_USER_TSI1_PACKET;
++				return NET_BYPASS_TYPE_TSI1;
 +			}
 +
 +			// TSI2:  if TSI2 is enabled and PORT=matching and IP=matching-TSI2-IP
 +			if (priv->tsi_dport2 != 0 && matches_tsi2_port(priv, udp->dest) && matches_tsi2_addr(priv, ipv4->daddr)) {
 +
-+				return NET_BYPASS_STATUS_USER_TSI2_PACKET;
++				return NET_BYPASS_TYPE_TSI2;
 +			}
 +
 +			// BBI1:  if BBI is enabled and PORT=matching
 +			if (priv->bbi_dport1 != 0 && matches_bbi1_port(priv, udp->dest)) {
-+				return NET_BYPASS_STATUS_USER_BBI1_PACKET;
++				return NET_BYPASS_TYPE_BBI1;
 +			}
 +			// BBI2:  if BBI is enabled and PORT=matching
 +			if (priv->bbi_dport2 != 0 && matches_bbi2_port(priv, udp->dest)) {
-+				return NET_BYPASS_STATUS_USER_BBI2_PACKET;
++				return NET_BYPASS_TYPE_BBI2;
 +			}
 +		}
 +
 +
 +		// IP-BROADCAST:  If addressed to IP=!our
 +		if (ipv4_is_our_ip(priv, ipv4->daddr) == false && ipv4_is_multicast_local(ipv4->daddr) == false) {
-+			return NET_BYPASS_STATUS_USER_IP_TRANSFER;
++			return NET_BYPASS_TYPE_IP;
 +		}
 +	}
 +
-+	return NET_BYPASS_STATUS_HANDLED_BY_KERNEL;
++	return NET_BYPASS_TYPE_INVALID;
 +}
 +
 +int work_allocate_buffer(struct gfar_priv_rx_q * rx_queue) {
@@ -907,7 +1003,7 @@ index 0000000..ebd774d
 +
 +	for (i = 0; i < rx_queue->rx_ring_size; i++) {
 +		struct work_priv_rx_pkt *pktbuff = &rx_queue->rx_pktbuff[i];
-+		pktbuff->status = NET_BYPASS_STATUS_FREE_PACKET;
++		pktbuff->status = NET_BYPASS_STATUS_FREE;
 +	}
 +	return 0;
 +}
@@ -965,7 +1061,7 @@ index 0000000..ebd774d
 +	}
 +
 +	pktbuff->dma = addr;
-+	pktbuff->status = NET_BYPASS_STATUS_PACKET_IN_DMA;
++	pktbuff->status = NET_BYPASS_STATUS_DMA;
 +	pktbuff->size = 0;
 +
 +	return true;
@@ -985,9 +1081,9 @@ index 0000000..ebd774d
 +		pktbuff = &rx_queue->rx_pktbuff[i];
 +
 +		// Do not reuse buffer, when it's still in use by the application
-+		if (pktbuff->status != NET_BYPASS_STATUS_FREE_PACKET) {
++		if (pktbuff->status != NET_BYPASS_STATUS_FREE) {
 +//			printk_10s(KERN_ERR "Status(%d of %d) is 0x%x instead of 0x%x (free)!\n",
-+//			           i, i+alloc_cnt+1, pktbuff->status, NET_BYPASS_STATUS_FREE_PACKET);
++//			           i, i+alloc_cnt+1, pktbuff->status, NET_BYPASS_STATUS_FREE);
 +			rx_queue->starving = 1;
 +			break;
 +		}
@@ -998,7 +1094,7 @@ index 0000000..ebd774d
 +				break;
 +			}
 +		}
-+		pktbuff->status = NET_BYPASS_STATUS_PACKET_IN_DMA;
++		pktbuff->status = NET_BYPASS_STATUS_DMA;
 +
 +		dma_sync_single_range_for_device(rx_queue->dev, pktbuff->dma, 0,
 +		                                 sizeof(pktbuff->frame), DMA_FROM_DEVICE);
@@ -1028,13 +1124,13 @@ index 0000000..ebd774d
 +	unsigned int size = lstatus & BD_LENGTH_MASK;
 +
 +
-+	if (unlikely(pktbuff->status != NET_BYPASS_STATUS_PACKET_IN_DMA)) {
-+//		if ((pktbuff->status & NET_BYPASS_MASK_USER_KERNEL) > 0) {
++	if (unlikely(pktbuff->status != NET_BYPASS_STATUS_DMA)) {
++//		if (pktbuff->status == NET_BYPASS_STATUS_USER || pktbuff->status NET_BYPASS_STATUS_KERNEL) {
 +//			printk_10s(KERN_NOTICE "Dropping packet because userspace is too slow!\n");
 +//		}
 +//		else {
 +//			printk_10s(KERN_ERR "ERROR: %s: status[%d]=0x%x instead of 0x%x!\n", __func__,
-+//			       rx_queue->next_to_clean, pktbuff->status, NET_BYPASS_STATUS_PACKET_IN_DMA);
++//			       rx_queue->next_to_clean, pktbuff->status, NET_BYPASS_STATUS_DMA);
 +//		}
 +		rx_queue->overload_drops ++;
 +		rx_queue->starving = 1;
@@ -1063,26 +1159,23 @@ index 0000000..ebd774d
 +
 +	pktbuff->size = size - pktbuff->offset;
 +
-+	pktbuff->status = work_classify_packet(priv, pktbuff->frame + pktbuff->offset);
++	pktbuff->type = work_classify_packet(priv, pktbuff->frame + pktbuff->offset);
 +
-+	switch (pktbuff->status) {
-+		case NET_BYPASS_STATUS_USER_IP_TRANSFER:
-+		case NET_BYPASS_STATUS_USER_TSI1_PACKET:
-+		case NET_BYPASS_STATUS_USER_TSI2_PACKET:
-+		case NET_BYPASS_STATUS_USER_BBI1_PACKET:
-+		case NET_BYPASS_STATUS_USER_BBI2_PACKET:
-+			// will be read by userspace
++	/* Status must be set as the last action! */
++	switch (pktbuff->type) {
++		case NET_BYPASS_TYPE_IP:
++		case NET_BYPASS_TYPE_TSI1:
++		case NET_BYPASS_TYPE_TSI2:
++		case NET_BYPASS_TYPE_BBI1:
++		case NET_BYPASS_TYPE_BBI2:
++			pktbuff->status = NET_BYPASS_STATUS_USER;
 +			break;
 +
-+		case NET_BYPASS_STATUS_FREE_PACKET:
-+		case NET_BYPASS_STATUS_PACKET_IN_DMA:
-+			printk_10s(KERN_NOTICE "Invalid packet status from work_classify_packet(): %d\n", pktbuff->status);
-+			break;
-+
-+		case NET_BYPASS_STATUS_HANDLED_BY_KERNEL:
++		case NET_BYPASS_TYPE_INVALID:
 +			skb = netdev_alloc_skb(rx_queue->ndev, size);
 +			if (!skb) return NULL;
 +			memcpy(skb_put(skb, size), pktbuff->frame, size);
++			pktbuff->status = NET_BYPASS_STATUS_KERNEL;
 +			break;
 +	}
 +	return skb;
@@ -1095,7 +1188,7 @@ new file mode 100644
 index 0000000..b58b3ee
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.h
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,111 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -1158,21 +1251,22 @@ index 0000000..b58b3ee
 +
 +
 +
-+#define NET_BYPASS_MASK_USER                   0x0100    // packets with data for application
-+#define NET_BYPASS_STATUS_USER_IP_TRANSFER     0x0101    // packets for IP transmission
-+#define NET_BYPASS_STATUS_USER_TSI1_PACKET     0x0102    // TSoIP packets - stream 1
-+#define NET_BYPASS_STATUS_USER_TSI2_PACKET     0x0103    // TSoIP packets - stream 2
-+#define NET_BYPASS_STATUS_USER_BBI1_PACKET     0x0104    // BBoIP packets - stream 1
-+#define NET_BYPASS_STATUS_USER_BBI2_PACKET     0x0105    // BBoIP packets - stream 2
 +
-+#define NET_BYPASS_MASK_KERNEL                 0x0200
-+#define NET_BYPASS_STATUS_HANDLED_BY_KERNEL    0x0201     // packets for Linux/system
++/* Up to 8 different packet status */
++#define NET_BYPASS_STATUS_INVALID      (0)         /* Packet is invalid - must not happen! */
++#define NET_BYPASS_STATUS_FREE         (1 << 0)    /* Packet was fully read from userspace */
++#define NET_BYPASS_STATUS_DMA          (1 << 1)    /* Packet is assigned to DMA to be filled */
++#define NET_BYPASS_STATUS_USER         (1 << 2)    /* Packet is filled and for userspace */
++#define NET_BYPASS_STATUS_KERNEL       (1 << 3)    /* Packet is filled and for kernel */
 +
-+#define NET_BYPASS_STATUS_FREE_PACKET          0x0401     // packets read-out by application
++/* Up to 256 different packet types */
++#define NET_BYPASS_TYPE_INVALID        (0)         /* Invalid type */
++#define NET_BYPASS_TYPE_IP             (1)         /* Packet for IP transmission */
++#define NET_BYPASS_TYPE_TSI1           (2)         /* Packet for Transport Stream Input 1 */
++#define NET_BYPASS_TYPE_TSI2           (3)         /* Packet for Transport Stream Input 2 */
++#define NET_BYPASS_TYPE_BBI1           (4)         /* Packet for Baseband Input 1 */
++#define NET_BYPASS_TYPE_BBI2           (5)         /* Packet for Baseband Input 2 */
 +
-+#define NET_BYPASS_STATUS_PACKET_IN_DMA        0x0801     // packets waiting to be filled by DMA
-+
-+#define NET_BYPASS_MASK_USER_KERNEL            (NET_BYPASS_MASK_USER | NET_BYPASS_MASK_KERNEL)
 +
 +
 +
@@ -1184,12 +1278,13 @@ index 0000000..b58b3ee
 +#define STARVING_RATE   (HZ/200)
 +
 +struct work_priv_rx_pkt {
-+	uint32_t status;
++	uint8_t status;
++	uint8_t type;
 +	int32_t size;
 +	int32_t offset;
 +	dma_addr_t dma;    // uint64_t due to CONFIG_ARCH_DMA_ADDR_T_64BIT
 +	uint32_t drops;
-+	uint8_t reserved[128-4*sizeof(uint32_t)-sizeof(dma_addr_t)];
++	uint8_t reserved[128-2*sizeof(uint8_t)-3*sizeof(uint32_t)-sizeof(dma_addr_t)];
 +	uint8_t frame[WORK_JUMBO_BUFFER_SIZE];
 +} __attribute__((packed));
 +
