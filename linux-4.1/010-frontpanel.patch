@@ -460,7 +460,7 @@ diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
 index 6e1c984a75d4..18e45b3065ef 100644
 --- a/drivers/gpio/gpio-max7301.c
 +++ b/drivers/gpio/gpio-max7301.c
-@@ -18,8 +18,22 @@
+@@ -18,25 +18,40 @@
  #include <linux/spi/spi.h>
  #include <linux/spi/max7301.h>
  
@@ -484,7 +484,8 @@ index 6e1c984a75d4..18e45b3065ef 100644
  				unsigned int val)
  {
  	struct spi_device *spi = to_spi_device(dev);
-@@ -27,10 +41,11 @@ static int max7301_spi_write(struct device *dev, unsigned int reg,
+-	u16 word = ((reg & 0x7F) << 8) | (val & 0xFF);
++	u16 word = cpu_to_be16(((reg & 0x7F) << 8) | (val & 0xFF));
  
  	return spi_write(spi, (const u8 *)&word, sizeof(word));
  }
@@ -497,9 +498,19 @@ index 6e1c984a75d4..18e45b3065ef 100644
  {
  	int ret;
  	u16 word;
-@@ -49,6 +64,7 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	struct spi_device *spi = to_spi_device(dev);
+ 
+-	word = 0x8000 | (reg << 8);
++	word = cpu_to_be16(0x8000 | (reg << 8));
+ 	ret = spi_write(spi, (const u8 *)&word, sizeof(word));
+ 	if (ret)
  		return ret;
- 	return word & 0xff;
+@@ -47,8 +62,9 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	ret = spi_read(spi, (u8 *)&word, sizeof(word));
+ 	if (ret)
+ 		return ret;
+-	return word & 0xff;
++	return be16_to_cpu(word) & 0xff;
  }
 +EXPORT_SYMBOL_GPL(max7301_spi_read);
  
@@ -617,7 +628,7 @@ index 6e2720ea7d45..3709b0f25f52 100644
  
  	chip = devm_kzalloc(&client->dev,
  			sizeof(struct pca953x_chip), GFP_KERNEL);
-@@ -680,8 +694,10 @@ static int pca953x_probe(struct i2c_client *client,
+@@ -684,8 +698,10 @@ static int pca953x_probe(struct i2c_client *client,
  		ret = device_pca953x_init(chip, invert);
  	else
  		ret = device_pca957x_init(chip, invert);
@@ -629,7 +640,7 @@ index 6e2720ea7d45..3709b0f25f52 100644
  
  	ret = gpiochip_add(&chip->gpio_chip);
  	if (ret)
-@@ -698,6 +714,20 @@ static int pca953x_probe(struct i2c_client *client,
+@@ -702,6 +718,20 @@ static int pca953x_probe(struct i2c_client *client,
  			dev_warn(&client->dev, "setup failed, %d\n", ret);
  	}
  
@@ -673,7 +684,7 @@ diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
 index b3c10b7dae1f..76b48c11ba86 100644
 --- a/drivers/misc/Kconfig
 +++ b/drivers/misc/Kconfig
-@@ -518,6 +518,7 @@ config VEXPRESS_SYSCFG
+@@ -538,6 +538,7 @@ config VEXPRESS_SYSCFG
  source "drivers/misc/c2port/Kconfig"
  source "drivers/misc/eeprom/Kconfig"
  source "drivers/misc/cb710/Kconfig"
@@ -685,7 +696,7 @@ diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
 index 7d5c4cd118c4..dd315428c54d 100644
 --- a/drivers/misc/Makefile
 +++ b/drivers/misc/Makefile
-@@ -38,6 +38,7 @@ obj-$(CONFIG_C2PORT)		+= c2port/
+@@ -40,6 +40,7 @@ obj-$(CONFIG_C2PORT)		+= c2port/
  obj-$(CONFIG_HMC6352)		+= hmc6352.o
  obj-y				+= eeprom/
  obj-y				+= cb710/
@@ -734,12 +745,11 @@ new file mode 100644
 index 000000000000..78d2e0ca292f
 --- /dev/null
 +++ b/drivers/misc/work/Makefile
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,5 @@
 +#
 +# Makefile for WORK Microwave specially arranged
 +#
 +
-+obj-$(CONFIG_WORK_KEYS)		+= work-keys.o
 +obj-$(CONFIG_WORK_DISP)		+= work-disp.o
 diff --git a/drivers/misc/work/max6957.h b/drivers/misc/work/max6957.h
 new file mode 100644
@@ -1156,8 +1166,8 @@ index 000000000000..a83db228d963
 +
 +	err = max7301_spi_read(sd, MAX6957_GCONF);
 +	if (err != MAX6957_GCONFVAL_OP) {
-+		printk("work_disp: Bad value in reg (expected 0x%02x, got 0x%02x, (%d)), "
-+		       "display missing?\n", MAX6957_GCONFVAL_OP, err, err);
++		printk("work_disp: Bad value in reg (expected 0x%02x, got 0x%02x), "
++		       "display missing?\n", MAX6957_GCONFVAL_OP, err);
 +		if (err >= 0)
 +			err = -1;
 +		goto exit_unlock;

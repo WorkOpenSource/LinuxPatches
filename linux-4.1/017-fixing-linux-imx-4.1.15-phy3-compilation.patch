@@ -1,0 +1,44 @@
+Patch to make git://git.phytec.de/linux-imx on tag v4.1.15-phy3 compiling
+with GCC 6.4.0 on i.MX 6 UL
+
+
+diff --git a/arch/arm/mach-imx/Makefile b/arch/arm/mach-imx/Makefile
+index d47f4ac1..1da7aa6c 100644
+--- a/arch/arm/mach-imx/Makefile
++++ b/arch/arm/mach-imx/Makefile
+@@ -39,8 +39,10 @@ AFLAGS_imx6ul_low_power_idle.o :=-Wa,-march=armv7-a
+ obj-$(CONFIG_SOC_IMX6UL) += cpuidle-imx6ul.o imx6ul_low_power_idle.o
+ AFLAGS_imx6ull_low_power_idle.o :=-Wa,-march=armv7-a
+ obj-$(CONFIG_SOC_IMX6ULL) += imx6ull_low_power_idle.o
++obj-$(CONFIG_SOC_IMX6UL) += imx6ull_low_power_idle.o
+ AFLAGS_imx6sll_low_power_idle.o :=-Wa,-march=armv7-a
+ obj-$(CONFIG_SOC_IMX6SLL) += cpuidle-imx6sll.o imx6sll_low_power_idle.o
++obj-$(CONFIG_SOC_IMX6SL) += cpuidle-imx6sll.o imx6sll_low_power_idle.o
+ AFLAGS_imx7d_low_power_idle.o :=-Wa,-march=armv7-a
+ obj-$(CONFIG_SOC_IMX7D) += cpuidle-imx7d.o imx7d_low_power_idle.o
+ endif
+diff --git a/arch/arm/mach-imx/common.c b/arch/arm/mach-imx/common.c
+index 3016f60c..2f644c6b 100644
+--- a/arch/arm/mach-imx/common.c
++++ b/arch/arm/mach-imx/common.c
+@@ -132,7 +132,7 @@ u32 imx6_lpddr2_freq_change_start, imx6_lpddr2_freq_change_end;
+ void mx6_lpddr2_freq_change(u32 freq, int bus_freq_mode) {}
+ #endif
+ 
+-#if !defined(CONFIG_SOC_IMX6SL)
++#if !defined(CONFIG_SOC_IMX6SLL)
+ void imx6sll_lpddr2_freq_change(u32 freq, int bus_freq_mode) {}
+ #endif
+ 
+diff --git a/arch/arm/boot/dts/imx6ul-phytec-phyboard-segin-ff-rdk.dts b/arch/arm/boot/dts/imx6ul-phytec-phyboard-segin-ff-rdk.dts
+index e9ae8830..0ab8d628 100644
+--- a/arch/arm/boot/dts/imx6ul-phytec-phyboard-segin-ff-rdk.dts
++++ b/arch/arm/boot/dts/imx6ul-phytec-phyboard-segin-ff-rdk.dts
+@@ -7,7 +7,6 @@
+  * published by the Free Software Foundation.
+  */
+ 
+-/dts-v1/;
+ #include <dt-bindings/input/input.h>
+ #include "imx6ul.dtsi"
+ #include "imx6ul-phytec-phycore-som.dtsi"
