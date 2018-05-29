@@ -1,0 +1,115 @@
+Porting SPI partly from git://git.phytec.de/linux-imx (v4.1.15-phy3)
+to git://git.phytec.de/linux-mainline (tag v4.12.4-phy4).
+
+Currently only PIO supported - DMA not working. Must use GPIO for CS:
+
+	&adc1 {    // uses MX6UL_PAD_GPIO1_IO03__GPIO1_IO03
+		pinctrl-0 = < >;
+		status = "disabled";
+	};
+
+	&iomuxc {
+	/*	imx6ul-phytec-phyboard-segin { only in linux-imx */
+			pinctrl_ecspi3: ecspi3grp {
+				fsl,pins = <
+					MX6UL_PAD_UART2_RTS_B__ECSPI3_MISO    0x100b1
+					MX6UL_PAD_UART2_CTS_B__ECSPI3_MOSI    0x100b1
+					MX6UL_PAD_UART2_RX_DATA__ECSPI3_SCLK  0x100b1
+	/*				MX6UL_PAD_UART2_TX_DATA__ECSPI3_SS0   0x000b1 */
+
+					MX6UL_PAD_GPIO1_IO03__GPIO1_IO03      0x000b1  /* SS0 or CS */
+				>;
+			};
+
+			pinctrl_adc1: adc1grp {    // uses MX6UL_PAD_GPIO1_IO03__GPIO1_IO03
+				fsl,pins = < >;
+			};
+	/*	}; only in linux-imx */
+	};
+
+	&ecspi3 {
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ecspi3>;
+		fsl,spi-num-chipselects = <1>;
+		cs-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+
+		gpiomax: gpio@0 {
+			compatible = "max7301";
+			spi-max-frequency = <400000>;
+			reg = <0>;
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
+	};
+
+
+
+diff --git a/drivers/spi/spi-imx.c b/drivers/spi/spi-imx.c
+index b402530a..ad243729 100644
+--- a/drivers/spi/spi-imx.c
++++ b/drivers/spi/spi-imx.c
+@@ -1181,13 +1181,25 @@ static int spi_imx_probe(struct platform_device *pdev)
+ 	struct spi_master *master;
+ 	struct spi_imx_data *spi_imx;
+ 	struct resource *res;
+-	int i, ret, irq, spi_drctl;
++	int i, ret, num_cs, irq, spi_drctl;
+ 
+ 	if (!np && !mxc_platform_info) {
+ 		dev_err(&pdev->dev, "can't get the platform data\n");
+ 		return -EINVAL;
+ 	}
+ 
++	ret = of_property_read_u32(np, "fsl,spi-num-chipselects", &num_cs);
++	if (ret < 0) {
++		if (mxc_platform_info) {
++			num_cs = mxc_platform_info->num_chipselect;
++		}
++		else {
++			dev_err(&pdev->dev, "either mxc_platform_info or "
++			                    "'fsl,spi-num-chipselects' missing\n");
++			return ret;
++		}
++	}
++
+ 	master = spi_alloc_master(&pdev->dev, sizeof(struct spi_imx_data));
+ 	ret = of_property_read_u32(np, "fsl,spi-rdy-drctl", &spi_drctl);
+ 	if ((ret < 0) || (spi_drctl >= 0x3)) {
+@@ -1202,6 +1214,7 @@ static int spi_imx_probe(struct platform_device *pdev)
+ 
+ 	master->bits_per_word_mask = SPI_BPW_RANGE_MASK(1, 32);
+ 	master->bus_num = np ? -1 : pdev->id;
++	master->num_chipselect = num_cs;
+ 
+ 	spi_imx = spi_master_get_devdata(master);
+ 	spi_imx->bitbang.master = master;
+@@ -1210,16 +1223,19 @@ static int spi_imx_probe(struct platform_device *pdev)
+ 	spi_imx->devtype_data = of_id ? of_id->data :
+ 		(struct spi_imx_devtype_data *)pdev->id_entry->driver_data;
+ 
+-	if (mxc_platform_info) {
+-		master->num_chipselect = mxc_platform_info->num_chipselect;
+-		master->cs_gpios = devm_kzalloc(&master->dev,
+-			sizeof(int) * master->num_chipselect, GFP_KERNEL);
+-		if (!master->cs_gpios)
+-			return -ENOMEM;
++	master->cs_gpios = devm_kzalloc(&master->dev,
++		sizeof(int) * master->num_chipselect, GFP_KERNEL);
++	if (!master->cs_gpios)
++		return -ENOMEM;
++
++	for (i = 0; i < master->num_chipselect; i++) {
++		int cs_gpio = of_get_named_gpio(np, "cs-gpios", i);
++		if (!gpio_is_valid(cs_gpio) && mxc_platform_info) {
++			cs_gpio = mxc_platform_info->chipselect[i];
++		}
++		master->cs_gpios[i] = cs_gpio;
++	}
+ 
+-		for (i = 0; i < master->num_chipselect; i++)
+-			master->cs_gpios[i] = mxc_platform_info->chipselect[i];
+- 	}
+ 
+ 	spi_imx->bitbang.chipselect = spi_imx_chipselect;
+ 	spi_imx->bitbang.setup_transfer = spi_imx_setupxfer;
