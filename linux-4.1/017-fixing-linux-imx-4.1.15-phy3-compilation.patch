@@ -1,5 +1,5 @@
 Patch to make git://git.phytec.de/linux-imx on tag v4.1.15-phy3 compiling
-with GCC 6.4.0 on i.MX 6 UL
+with GCC 6.4.0 for i.MX 6 UL
 
 
 diff --git a/arch/arm/mach-imx/Makefile b/arch/arm/mach-imx/Makefile
