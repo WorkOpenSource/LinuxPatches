@@ -692,7 +692,7 @@ new file mode 100644
 index 000000000..d331b2203
 --- /dev/null
 +++ b/drivers/misc/work/Kconfig
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,45 @@
 +#
 +# WORK Microwave specially arranged devices
 +#
@@ -707,13 +707,6 @@ index 000000000..d331b2203
 +	  If you say N, all options in this submenu will be skipped and disabled.
 +
 +if WORK_DRIVERS
-+
-+config WORK_KEYS
-+	tristate "WORK frontpanel keys driver"
-+	depends on GPIO_MAX7301
-+	default y
-+	help
-+	  This option enables the frontpanel keys driver.
 +
 +config WORK_DISP
 +	tristate "WORK frontpanel display driver"
@@ -750,12 +743,11 @@ new file mode 100644
 index 000000000..78d2e0ca2
 --- /dev/null
 +++ b/drivers/misc/work/Makefile
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,5 @@
 +#
 +# Makefile for WORK Microwave specially arranged
 +#
 +
-+obj-$(CONFIG_WORK_KEYS)		+= work-keys.o
 +obj-$(CONFIG_WORK_DISP)		+= work-disp.o
 diff --git a/drivers/misc/work/max6957.h b/drivers/misc/work/max6957.h
 new file mode 100644
