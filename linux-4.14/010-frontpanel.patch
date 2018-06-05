@@ -464,7 +464,7 @@ diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
 index 05813fbf3..851975515 100644
 --- a/drivers/gpio/gpio-max7301.c
 +++ b/drivers/gpio/gpio-max7301.c
-@@ -18,8 +18,22 @@
+@@ -18,25 +18,40 @@
  #include <linux/spi/spi.h>
  #include <linux/spi/max7301.h>
  
@@ -488,7 +488,8 @@ index 05813fbf3..851975515 100644
  				unsigned int val)
  {
  	struct spi_device *spi = to_spi_device(dev);
-@@ -27,10 +41,11 @@ static int max7301_spi_write(struct device *dev, unsigned int reg,
+-	u16 word = ((reg & 0x7F) << 8) | (val & 0xFF);
++	u16 word = cpu_to_be16(((reg & 0x7F) << 8) | (val & 0xFF));
  
  	return spi_write(spi, (const u8 *)&word, sizeof(word));
  }
@@ -501,9 +502,19 @@ index 05813fbf3..851975515 100644
  {
  	int ret;
  	u16 word;
-@@ -49,6 +64,7 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	struct spi_device *spi = to_spi_device(dev);
+ 
+-	word = 0x8000 | (reg << 8);
++	word = cpu_to_be16(0x8000 | (reg << 8));
+ 	ret = spi_write(spi, (const u8 *)&word, sizeof(word));
+ 	if (ret)
  		return ret;
- 	return word & 0xff;
+@@ -47,8 +62,9 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	ret = spi_read(spi, (u8 *)&word, sizeof(word));
+ 	if (ret)
+ 		return ret;
+-	return word & 0xff;
++	return be16_to_cpu(word) & 0xff;
  }
 +EXPORT_SYMBOL_GPL(max7301_spi_read);
  
