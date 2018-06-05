@@ -3,11 +3,6 @@ to git://git.phytec.de/linux-mainline (tag v4.12.4-phy4).
 
 Currently only PIO supported - DMA not working. Must use GPIO for CS:
 
-	&adc1 {    // uses MX6UL_PAD_GPIO1_IO03__GPIO1_IO03
-		pinctrl-0 = < >;
-		status = "disabled";
-	};
-
 	&iomuxc {
 	/*	imx6ul-phytec-phyboard-segin { only in linux-imx */
 			pinctrl_ecspi3: ecspi3grp {
@@ -15,14 +10,8 @@ Currently only PIO supported - DMA not working. Must use GPIO for CS:
 					MX6UL_PAD_UART2_RTS_B__ECSPI3_MISO    0x100b1
 					MX6UL_PAD_UART2_CTS_B__ECSPI3_MOSI    0x100b1
 					MX6UL_PAD_UART2_RX_DATA__ECSPI3_SCLK  0x100b1
-	/*				MX6UL_PAD_UART2_TX_DATA__ECSPI3_SS0   0x000b1 */
-
-					MX6UL_PAD_GPIO1_IO03__GPIO1_IO03      0x000b1  /* SS0 or CS */
+					MX6UL_PAD_UART2_TX_DATA__GPIO1_IO20   0x000b1  /* usind GPIO1_20 as CS/SS0 */
 				>;
-			};
-
-			pinctrl_adc1: adc1grp {    // uses MX6UL_PAD_GPIO1_IO03__GPIO1_IO03
-				fsl,pins = < >;
 			};
 	/*	}; only in linux-imx */
 	};
@@ -32,7 +21,7 @@ Currently only PIO supported - DMA not working. Must use GPIO for CS:
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ecspi3>;
 		fsl,spi-num-chipselects = <1>;
-		cs-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+		cs-gpios = <&gpio1 20 GPIO_ACTIVE_HIGH>;
 
 		gpiomax: gpio@0 {
 			compatible = "max7301";
