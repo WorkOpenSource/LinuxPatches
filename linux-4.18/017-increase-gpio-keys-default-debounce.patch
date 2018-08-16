@@ -1,0 +1,49 @@
+This patch reduces the possible press-interval for the front-panel keys be
+introducing a high (50ms instead of 5ms) debounce default interval. This
+patch is only needed if the device tree has no debounce-interval set, e.g.
+
+		rightkey {
+			gpios = <&gpio24 2 1>;
+			interrupts = <8 0x2 0 0>;
+			linux,code = <106>;		/* KEY_RIGHT */
+			debounce-interval = <50>;
+		};
+
+Without this patch very frequent errors and wrong key-presses happen, e.g. when
+pressing only RIGHT key:
+
+[   72.621202] fpctrl <inf> RIGHT
+[   72.810853] fpctrl <inf> RIGHT
+[   72.967489] fpctrl <inf> RIGHT
+[   73.968776] pca953x 1-0024: failed reading register 2: -110
+[   73.995423] fpctrl <inf> RIGHT
+[   74.123525] fpctrl <inf> RIGHT
+[   74.235027] fpctrl <inf> TXON
+[   74.243534] satctl <inf> Turning TX on.
+[   74.251413] fpctrl <inf> RIGHT
+[   74.365604] fpctrl <inf> RIGHT
+[   74.645672] satctl <inf> Demodulator locked.
+[   74.655464] fpctrl <inf> RIGHT
+[   74.832994] satctl <inf> Demodulator had a very short unlocked state.
+[   74.963224] fpctrl <inf> RIGHT
+[   75.131921] fpctrl <inf> RIGHT
+[   75.180064] satctl <inf> Demodulator locked.
+[   75.297473] fpctrl <inf> RIGHT
+[   75.434722] fpctrl <inf> RIGHT
+
+Errors come from pca953x_read_single() in gpio-pca953x.c and is "Connection
+timed out" and "Input/output error".
+
+diff --git a/drivers/input/keyboard/gpio_keys.c b/drivers/input/keyboard/gpio_keys.c
+index 052e3767..2f8c1c4c 100644
+--- a/drivers/input/keyboard/gpio_keys.c
++++ b/drivers/input/keyboard/gpio_keys.c
+@@ -753,7 +753,7 @@ gpio_keys_get_devtree_pdata(struct device *dev)
+ 
+ 		if (fwnode_property_read_u32(child, "debounce-interval",
+ 					 &button->debounce_interval))
+-			button->debounce_interval = 5;
++			button->debounce_interval = 50;
+ 
+ 		button++;
+ 	}
