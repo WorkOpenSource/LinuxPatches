@@ -1,13 +1,8 @@
-Makes sysfs-file 'flags' of mtd writeable
+Allowing to clear the read-only flag (e.g. for changing the U-Boot env):
 
-The flags file must be writeable to be able to remove the read-only flag
-of mtd blocks before updating them, e.g.
-
-	echo 0x400 > /sys/class/mtd/mtd5/flags
-	flashcp -v /tmp/uboot-env.dat /dev/mtd5
-	echo 0xc00 > /sys/class/mtd/mtd5/flags
-
-
+# echo 0x400 > /sys/class/mtd/mtd4/flags
+# fw_setenv serverip 172.16.11.137
+# echo 0x800 > /sys/class/mtd/mtd4/flags 
 
 
 diff --git a/drivers/mtd/mtdcore.c b/drivers/mtd/mtdcore.c

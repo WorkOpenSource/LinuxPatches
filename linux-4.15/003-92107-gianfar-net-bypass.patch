@@ -1,3 +1,7 @@
+Adding bypass to Freescale's Gianfar Ethernet driver (e.g. used by p2020) to forward
+network packages directly from the network driver to a userspace application.
+
+
 diff --git a/drivers/net/ethernet/freescale/Makefile b/drivers/net/ethernet/freescale/Makefile
 index ed8ad0fef..5754d21d1 100644
 --- a/drivers/net/ethernet/freescale/Makefile
