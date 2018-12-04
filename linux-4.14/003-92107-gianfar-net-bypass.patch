@@ -676,31 +676,31 @@ index 000000000..909330f40
 +}
 +
 +static ssize_t work_bbi_port1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
-+struct gfar_private *priv = PDE_DATA(file_inode(file));
-+__kernel_size_t strsize;
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	__kernel_size_t strsize;
 +
-+if (*((int*)file->private_data) != 0) return 0;
++	if (*((int*)file->private_data) != 0) return 0;
 +
-+snprintf(buf, size-1, "%u", priv->bbi_dport1);
-+buf[size-1] = '\0';
++	snprintf(buf, size-1, "%u", priv->bbi_dport1);
++	buf[size-1] = '\0';
 +
-+strsize = strlen(buf);
-+*((int*)file->private_data) = strsize;
-+return strsize;
++	strsize = strlen(buf);
++	*((int*)file->private_data) = strsize;
++	return strsize;
 +}
 +
 +static ssize_t work_bbi_port1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
-+struct gfar_private *priv = PDE_DATA(file_inode(file));
-+unsigned int dport_bbi;
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	unsigned int dport_bbi;
 +
-+if(sscanf(buf, "%u", &dport_bbi)) {
-+priv->bbi_dport1 = dport_bbi;
-+return size;
-+}
-+else {
-+printk(KERN_ERR "Error parsing BBI port1!\n");
-+return -EINVAL;
-+}
++	if(sscanf(buf, "%u", &dport_bbi)) {
++		priv->bbi_dport1 = dport_bbi;
++		return size;
++	}
++	else {
++		printk(KERN_ERR "Error parsing BBI port1!\n");
++		return -EINVAL;
++		}
 +}
 +
 +static int work_bbi_port1_close(struct inode *inode, struct file *file) {
@@ -725,31 +725,31 @@ index 000000000..909330f40
 +}
 +
 +static ssize_t work_bbi_port2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
-+struct gfar_private *priv = PDE_DATA(file_inode(file));
-+__kernel_size_t strsize;
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	__kernel_size_t strsize;
 +
-+if (*((int*)file->private_data) != 0) return 0;
++	if (*((int*)file->private_data) != 0) return 0;
 +
-+snprintf(buf, size-1, "%u", priv->bbi_dport2);
-+buf[size-1] = '\0';
++	snprintf(buf, size-1, "%u", priv->bbi_dport2);
++	buf[size-1] = '\0';
 +
-+strsize = strlen(buf);
-+*((int*)file->private_data) = strsize;
-+return strsize;
++	strsize = strlen(buf);
++	*((int*)file->private_data) = strsize;
++	return strsize;
 +}
 +
 +static ssize_t work_bbi_port2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
-+struct gfar_private *priv = PDE_DATA(file_inode(file));
-+unsigned int dport_bbi;
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	unsigned int dport_bbi;
 +
-+if(sscanf(buf, "%u", &dport_bbi)) {
-+priv->bbi_dport2 = dport_bbi;
-+return size;
-+}
-+else {
-+printk(KERN_ERR "Error parsing BBI port2!\n");
-+return -EINVAL;
-+}
++	if(sscanf(buf, "%u", &dport_bbi)) {
++		priv->bbi_dport2 = dport_bbi;
++		return size;
++	}
++	else {
++		printk(KERN_ERR "Error parsing BBI port2!\n");
++		return -EINVAL;
++	}
 +}
 +
 +static int work_bbi_port2_close(struct inode *inode, struct file *file) {
