@@ -51,7 +51,7 @@ diff --git a/kernel/irq/manage.c b/kernel/irq/manage.c
 index 48b70c36..40a863d2 100644
 --- a/kernel/irq/manage.c
 +++ b/kernel/irq/manage.c
-@@ -1424,12 +1424,6 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
+@@ -1435,12 +1435,6 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
  		if (new->flags & IRQF_ONESHOT)
  			desc->istate |= IRQS_ONESHOT;
  
@@ -64,7 +64,7 @@ index 48b70c36..40a863d2 100644
  		if (irq_settings_can_autoenable(desc)) {
  			irq_startup(desc, IRQ_RESEND, IRQ_START_COND);
  		} else {
-@@ -1444,6 +1438,15 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
+@@ -1455,6 +1449,15 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
  			desc->depth = 1;
  		}
  

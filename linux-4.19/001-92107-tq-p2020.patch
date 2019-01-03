@@ -5,7 +5,7 @@ diff --git a/arch/powerpc/boot/Makefile b/arch/powerpc/boot/Makefile
 index 26d5d2a5..a2a5eac5 100644
 --- a/arch/powerpc/boot/Makefile
 +++ b/arch/powerpc/boot/Makefile
-@@ -330,6 +330,8 @@ image-$(CONFIG_TQM8541)			+= cuImage.tqm8541
+@@ -336,6 +336,8 @@ image-$(CONFIG_TQM8541)			+= cuImage.tqm8541
  image-$(CONFIG_TQM8548)			+= cuImage.tqm8548
  image-$(CONFIG_TQM8555)			+= cuImage.tqm8555
  image-$(CONFIG_TQM8560)			+= cuImage.tqm8560
@@ -307,7 +307,7 @@ diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
 index cb0f0278..3018133b 100644
 --- a/net/packet/af_packet.c
 +++ b/net/packet/af_packet.c
-@@ -2755,6 +2755,12 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+@@ -2728,6 +2728,12 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
  		packet_inc_pending(&po->tx_ring);
  
  		status = TP_STATUS_SEND_REQUEST;
@@ -320,7 +320,7 @@ index cb0f0278..3018133b 100644
  		err = po->xmit(skb);
  		if (unlikely(err > 0)) {
  			err = net_xmit_errno(err);
-@@ -2770,6 +2776,8 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+@@ -2743,6 +2749,8 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
  			 */
  			err = 0;
  		}
