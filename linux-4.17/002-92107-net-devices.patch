@@ -665,7 +665,7 @@ index 00000000..b4a94998
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/misc/work92107/dmdifdev.c b/drivers/misc/work92107/dmdifdev.c
 new file mode 100644
-index 00000000..e9aea185
+index 000000000000..e9aea18568ce
 --- /dev/null
 +++ b/drivers/misc/work92107/dmdifdev.c
 @@ -0,0 +1,47 @@
@@ -718,7 +718,7 @@ index 00000000..e9aea185
 +
 diff --git a/drivers/misc/work92107/satif.c b/drivers/misc/work92107/satif.c
 new file mode 100644
-index 00000000..ec3305ef
+index 000000000000..ec3305eff373
 --- /dev/null
 +++ b/drivers/misc/work92107/satif.c
 @@ -0,0 +1,545 @@
