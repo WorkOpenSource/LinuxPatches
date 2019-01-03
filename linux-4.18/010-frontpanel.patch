@@ -599,7 +599,7 @@ index d2ead4b1..505a2082 100644
  #include <linux/gpio/driver.h>
  #include <linux/gpio/consumer.h>
  #include <linux/i2c.h>
-@@ -750,6 +750,11 @@ static int device_pca957x_init(struct pca953x_chip *chip, u32 invert)
+@@ -779,6 +780,11 @@ static int device_pca957x_init(struct pca953x_chip *chip, u32 invert)
  
  static const struct of_device_id pca953x_dt_ids[];
  
@@ -611,7 +611,7 @@ index d2ead4b1..505a2082 100644
  static int pca953x_probe(struct i2c_client *client,
  				   const struct i2c_device_id *i2c_id)
  {
-@@ -758,6 +763,7 @@ static int pca953x_probe(struct i2c_client *client,
+@@ -787,6 +793,7 @@ static int pca953x_probe(struct i2c_client *client,
  	int irq_base = 0;
  	int ret;
  	u32 invert = 0;
@@ -619,7 +619,7 @@ index d2ead4b1..505a2082 100644
  	struct regulator *reg;
  
  	chip = devm_kzalloc(&client->dev,
-@@ -873,8 +879,10 @@ static int pca953x_probe(struct i2c_client *client,
+@@ -900,8 +907,10 @@ static int pca953x_probe(struct i2c_client *client,
  		goto err_exit;
  
  	ret = devm_gpiochip_add_data(&client->dev, &chip->gpio_chip, chip);
@@ -631,7 +631,7 @@ index d2ead4b1..505a2082 100644
  
  	ret = pca953x_irq_setup(chip, irq_base);
  	if (ret)
-@@ -887,6 +895,20 @@ static int pca953x_probe(struct i2c_client *client,
+@@ -914,6 +923,20 @@ static int pca953x_probe(struct i2c_client *client,
  			dev_warn(&client->dev, "setup failed, %d\n", ret);
  	}
  
@@ -675,7 +675,7 @@ diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
 index 5d713008..5ff3d574 100644
 --- a/drivers/misc/Kconfig
 +++ b/drivers/misc/Kconfig
-@@ -502,6 +502,7 @@ config MISC_RTSX
+@@ -516,6 +516,7 @@ config MISC_RTSX
  source "drivers/misc/c2port/Kconfig"
  source "drivers/misc/eeprom/Kconfig"
  source "drivers/misc/cb710/Kconfig"
@@ -687,7 +687,7 @@ diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
 index 20be70c3..bc88fc29 100644
 --- a/drivers/misc/Makefile
 +++ b/drivers/misc/Makefile
-@@ -35,6 +35,7 @@ obj-$(CONFIG_C2PORT)		+= c2port/
+@@ -36,6 +36,7 @@ obj-$(CONFIG_C2PORT)		+= c2port/
  obj-$(CONFIG_HMC6352)		+= hmc6352.o
  obj-y				+= eeprom/
  obj-y				+= cb710/
