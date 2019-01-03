@@ -233,7 +233,7 @@ index 5aa814799..dfa8bf639 100644
  };
  
  enum gfar_irqinfo_id {
-@@ -1203,6 +1210,14 @@ struct gfar_private {
+@@ -1203,6 +1210,16 @@ struct gfar_private {
  	/*Filer table*/
  	unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
  	unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
@@ -245,6 +245,8 @@ index 5aa814799..dfa8bf639 100644
 +	__be32 tsi_dest_addr1;          // Destination IPv4 for TSI Stream 1 (unicast and multicast)
 +	__be16 tsi_dport2;              // UDP port for TSI Stream 2
 +	__be32 tsi_dest_addr2;          // Destination IPv4 for TSI Stream 2 (unicast and multicast)
++	__be16 bbi_dport1;              // UPD port for BBI Stream 1
++	__be16 bbi_dport2;              // UPD port for BBI Stream 2
  };
  
  
@@ -253,7 +255,7 @@ new file mode 100644
 index 000000000..00ac37a7f
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,707 @@
+@@ -0,0 +1,999 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -299,7 +301,19 @@ index 000000000..00ac37a7f
 +}
 +
 +static ssize_t work_buffer_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
-+	return 0;
++	struct gfar_private *priv = file->private_data;
++	struct gfar_priv_rx_q *rx_queue = priv->rx_queue[0];
++	size_t buf_size = rx_queue->rx_ring_size * sizeof(rx_queue->rx_pktbuff[0]);
++	size_t available = buf_size - *ppos;
++	size_t to_copy = size > available ? available : size;
++	int not_copied;
++
++	if (*ppos >= buf_size) return 0;
++
++	not_copied = copy_to_user(buf, (char*)(rx_queue->rx_pktbuff) + *ppos, to_copy);
++	*ppos += to_copy - not_copied;
++
++	return to_copy - not_copied;
 +}
 +
 +static int work_buffer_close(struct inode *inode, struct file *file) {
@@ -375,18 +389,108 @@ index 000000000..00ac37a7f
 +
 +
 +
-+static ssize_t work_ipv4_to_string(__be32 *ipv4, char __user *buf, size_t size) {
-+	snprintf(buf, size-1, "%d.%d.%d.%d", (*ipv4 >> 24), (*ipv4 >> 16) & 0xFF,
-+	         (*ipv4 >> 8) & 0xFF, *ipv4 & 0xFF);
-+	buf[size-1] = '\0';
-+	return strlen(buf);
++
++
++
++
++static int work_next_to_use_open(struct inode *node, struct file *file) {
++	return 0;
++}
++static ssize_t work_next_to_use_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	struct gfar_priv_rx_q *rx_queue = priv->rx_queue[0];
++	char buffer[128];
++	int to_copy;
++
++	to_copy = snprintf(buffer, size-1, "%u", rx_queue->next_to_use);
++	buffer[to_copy] = '\0';
++	to_copy++;
++
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
++}
++static ssize_t work_next_to_use_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	return 0;
++}
++static int work_next_to_use_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_next_to_use_fops = {
++	.open = &work_next_to_use_open,
++	.read = &work_next_to_use_read,
++	.write = &work_next_to_use_write,
++	.release = &work_next_to_use_close,
++};
++
++
++
++
++
++
++
++
++static int work_next_to_clean_open(struct inode *node, struct file *file) {
++	return 0;
++}
++static ssize_t work_next_to_clean_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	struct gfar_priv_rx_q *rx_queue = priv->rx_queue[0];
++	char buffer[128];
++	int to_copy;
++
++	if (*ppos != 0) return 0;
++
++	to_copy = snprintf(buffer, size-1, "%u", rx_queue->next_to_clean);
++	buffer[to_copy] = '\0';
++	to_copy++;
++
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
++}
++static ssize_t work_next_to_clean_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	return 0;
++}
++static int work_next_to_clean_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_next_to_clean_fops = {
++	.open = &work_next_to_clean_open,
++	.read = &work_next_to_clean_read,
++	.write = &work_next_to_clean_write,
++	.release = &work_next_to_clean_close,
++};
++
++
++
++
++
++
++static ssize_t work_ipv4_to_string(__be32 *ipv4, char __user *buf, size_t size, loff_t *ppos) {
++	char buffer[128];
++	int to_copy;
++
++	to_copy = snprintf(buffer, size-1, "%d.%d.%d.%d",(*ipv4 >> 24), (*ipv4 >> 16) & 0xFF,
++	                   (*ipv4 >> 8) & 0xFF, *ipv4 & 0xFF);
++	buffer[to_copy] = '\0';
++	to_copy++;
++
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
 +}
 +
 +static ssize_t work_string_to_ipv4(__be32 *ipv4, const char __user *buf, size_t size) {
-+	char tmp = 0xFA;
++	char buffer[128], tmp;
 +	int ip[4];
 +
-+	if (size >= 7 && sscanf(buf, "%d.%d.%d.%d%c", &ip[0], &ip[1], &ip[2], &ip[3], &tmp) >= 4) {
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if (size >= 7 && sscanf(buffer, "%d.%d.%d.%d%c", &ip[0], &ip[1], &ip[2], &ip[3], &tmp) >= 4) {
 +		*ipv4 = 0;
 +		*ipv4 |= (ip[0] & 0xFF) << 24;
 +		*ipv4 |= (ip[1] & 0xFF) << 16;
@@ -410,12 +514,17 @@ index 000000000..00ac37a7f
 +}
 +static ssize_t work_ipv4_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	if (*ppos != 0) return 0;
-+	return work_ipv4_to_string(&priv->f_ipv4, buf, size);
++	return work_ipv4_to_string(&priv->f_ipv4, buf, size, ppos);
 +}
 +static ssize_t work_ipv4_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	return work_string_to_ipv4(&priv->f_ipv4, buf, size);
++	int result = work_string_to_ipv4(&priv->f_ipv4, buf, size);
++//	printk(KERN_NOTICE "WORK: Setting interface IP to %d.%d.%d.%d\n",
++//	       (priv->f_ipv4 >> 24),
++//	       (priv->f_ipv4 >> 16) & 0xFF,
++//	       (priv->f_ipv4 >>  8) & 0xFF,
++//	       (priv->f_ipv4      ) & 0xFF);
++	return result;
 +}
 +static int work_ipv4_close(struct inode *inode, struct file *file) {
 +	return 0;
@@ -435,22 +544,32 @@ index 000000000..00ac37a7f
 +}
 +static ssize_t work_mac_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++	int to_copy;
 +
 +	if (*ppos != 0) return 0;
 +
-+	snprintf(buf, size-1, "%02x:%02x:%02x:%02x:%02x:%02x",
-+	         priv->f_mac[0], priv->f_mac[1], priv->f_mac[2],
-+	         priv->f_mac[3], priv->f_mac[4], priv->f_mac[5]);
-+	buf[size-1] = '\0';
++	to_copy = snprintf(buffer, size-1, "%02x:%02x:%02x:%02x:%02x:%02x",
++	                   priv->f_mac[0], priv->f_mac[1], priv->f_mac[2],
++	                   priv->f_mac[3], priv->f_mac[4], priv->f_mac[5]);
++	buffer[to_copy] = '\0';
++	to_copy++;
 +
-+	return strlen(buf);
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
 +}
 +static ssize_t work_mac_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	char tmp;
++	char buffer[128], tmp;
 +	int mac[ETH_ALEN], cnt;
 +
-+	if (sscanf(buf,"%x:%x:%x:%x:%x:%x%c",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5],&tmp)>=6) {
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if (sscanf(buffer,"%x:%x:%x:%x:%x:%x%c",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5],&tmp)>=6) {
 +		for (cnt=0; cnt<ETH_ALEN; cnt++) {
 +			priv->f_mac[cnt] = mac[cnt] & 0xFF;
 +		}
@@ -460,6 +579,9 @@ index 000000000..00ac37a7f
 +			memset(priv->f_mac, 0, sizeof(priv->f_mac));
 +			return -EINVAL;
 +		}
++//		printk(KERN_NOTICE "WORK: Setting interface MAC to %02x:%02x:%02x:%02x:%02x:%02x\n",
++//		       priv->f_mac[0], priv->f_mac[1], priv->f_mac[2],
++//		       priv->f_mac[3], priv->f_mac[4], priv->f_mac[5]);
 +		return size;
 +	}
 +	else {
@@ -486,18 +608,31 @@ index 000000000..00ac37a7f
 +
 +static ssize_t work_tsi_port1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++	int to_copy;
++
 +	if (*ppos != 0) return 0;
 +
-+	snprintf(buf, size-1, "%hu", priv->tsi_dport1);
-+	buf[size-1] = '\0';
++	to_copy = snprintf(buffer, size-1, "%hu", priv->tsi_dport1);
++	buffer[to_copy] = '\0';
++	to_copy++;
 +
-+	return strlen(buf);
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
 +}
 +
 +static ssize_t work_tsi_port1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
 +
-+	if(sscanf(buf, "%hu", &priv->tsi_dport1)) {
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if(sscanf(buffer, "%hu", &priv->tsi_dport1) == 1) {
++//		printk(KERN_NOTICE "WORK: Setting TSI port 1 to %hu\n", priv->tsi_dport1);
 +		return size;
 +	}
 +	else {
@@ -525,11 +660,17 @@ index 000000000..00ac37a7f
 +static ssize_t work_tsi_dest_addr1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
 +	if (*ppos != 0) return 0;
-+	return work_ipv4_to_string(&priv->tsi_dest_addr1, buf, size);
++	return work_ipv4_to_string(&priv->tsi_dest_addr1, buf, size, ppos);
 +}
 +static ssize_t work_tsi_dest_addr1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	return work_string_to_ipv4(&priv->tsi_dest_addr1, buf, size);
++	int result = work_string_to_ipv4(&priv->tsi_dest_addr1, buf, size);
++//	printk(KERN_NOTICE "WORK: Setting TSI destination IP 1 to %d.%d.%d.%d\n",
++//	       (priv->f_ipv4 >> 24),
++//	       (priv->f_ipv4 >> 16) & 0xFF,
++//	       (priv->f_ipv4 >>  8) & 0xFF,
++//	       (priv->f_ipv4      ) & 0xFF);
++	return result;
 +}
 +static int work_tsi_dest_addr1_close(struct inode *inode, struct file *file) {
 +	return 0;
@@ -550,19 +691,31 @@ index 000000000..00ac37a7f
 +}
 +static ssize_t work_tsi_port2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++	int to_copy;
 +
 +	if (*ppos != 0) return 0;
 +
-+	snprintf(buf, size-1, "%hu", priv->tsi_dport2);
-+	buf[size-1] = '\0';
++	to_copy = snprintf(buffer, size-1, "%hu", priv->tsi_dport2);
++	buffer[to_copy] = '\0';
++	to_copy++;
 +
-+	return strlen(buf);
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
 +}
 +
 +static ssize_t work_tsi_port2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
 +
-+	if(sscanf(buf, "%hu", &priv->tsi_dport2)) {
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if(sscanf(buffer, "%hu", &priv->tsi_dport2) == 1) {
++//		printk(KERN_NOTICE "WORK: Setting TSI port 2 to %hu\n", priv->tsi_dport2);
 +		return size;
 +	}
 +	else {
@@ -583,6 +736,101 @@ index 000000000..00ac37a7f
 +};
 +
 +
++static int work_bbi_port1_open(struct inode *node, struct file *file) {
++	return 0;
++}
++
++static ssize_t work_bbi_port1_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++	int to_copy;
++
++	to_copy = snprintf(buffer, size-1, "%hu", priv->bbi_dport1);
++	buffer[to_copy] = '\0';
++	to_copy++;
++
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
++}
++
++static ssize_t work_bbi_port1_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if(sscanf(buffer, "%hu", &priv->bbi_dport1) == 1) {
++//		printk(KERN_NOTICE "WORK: Setting BBI port 1 to %hu\n", priv->bbi_dport1);
++		return size;
++	}
++	else {
++		printk(KERN_ERR "Error parsing BBI port1!\n");
++		return -EINVAL;
++	}
++}
++
++static int work_bbi_port1_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_bbi_port1_fops = {
++		.open = &work_bbi_port1_open,
++		.read = &work_bbi_port1_read,
++		.write = &work_bbi_port1_write,
++		.release = &work_bbi_port1_close,
++};
++
++static int work_bbi_port2_open(struct inode *node, struct file *file) {
++	return 0;
++}
++
++static ssize_t work_bbi_port2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++	int to_copy;
++
++	to_copy = snprintf(buffer, size-1, "%hu", priv->bbi_dport2);
++	buffer[to_copy] = '\0';
++	to_copy++;
++
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
++}
++
++static ssize_t work_bbi_port2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if(sscanf(buffer, "%hu", &priv->bbi_dport2) == 1) {
++//		printk(KERN_NOTICE "WORK: Setting BBI port 2 to %hu\n", priv->bbi_dport2);
++		return size;
++	}
++	else {
++		printk(KERN_ERR "Error parsing BBI port2!\n");
++		return -EINVAL;
++	}
++}
++
++static int work_bbi_port2_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_bbi_port2_fops = {
++		.open = &work_bbi_port2_open,
++		.read = &work_bbi_port2_read,
++		.write = &work_bbi_port2_write,
++		.release = &work_bbi_port2_close,
++};
 +
 +
 +static int work_tsi_dest_addr2_open(struct inode *node, struct file *file) {
@@ -591,11 +839,17 @@ index 000000000..00ac37a7f
 +static ssize_t work_tsi_dest_addr2_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
 +	if (*ppos != 0) return 0;
-+	return work_ipv4_to_string(&priv->tsi_dest_addr2, buf, size);
++	return work_ipv4_to_string(&priv->tsi_dest_addr2, buf, size, ppos);
 +}
 +static ssize_t work_tsi_dest_addr2_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
 +	struct gfar_private *priv = PDE_DATA(file_inode(file));
-+	return work_string_to_ipv4(&priv->tsi_dest_addr2, buf, size);
++	int result = work_string_to_ipv4(&priv->tsi_dest_addr2, buf, size);
++//	printk(KERN_NOTICE "WORK: Setting TSI destination IP 2 to %d.%d.%d.%d\n",
++//	       (priv->f_ipv4 >> 24),
++//	       (priv->f_ipv4 >> 16) & 0xFF,
++//	       (priv->f_ipv4 >>  8) & 0xFF,
++//	       (priv->f_ipv4      ) & 0xFF);
++	return result;
 +}
 +static int work_tsi_dest_addr2_close(struct inode *inode, struct file *file) {
 +	return 0;
@@ -620,63 +874,91 @@ index 000000000..00ac37a7f
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
++
++	sprintf(buf, "work_%s_next_to_use", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_next_to_use_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
 +	}
++	sprintf(buf, "work_%s_next_to_clean", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_next_to_clean_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++
 +	sprintf(buf, "work_%s_ipv4", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_ipv4_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+	}
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
 +	sprintf(buf, "work_%s_mac", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_mac_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+	}
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
 +	sprintf(buf, "work_%s_tsi_dport1", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_port1_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+	}
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
 +	sprintf(buf, "work_%s_tsi_dest_addr1", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr1_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+	}
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
 +	sprintf(buf, "work_%s_tsi_dport2", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_port2_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+	}
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
 +	sprintf(buf, "work_%s_tsi_dest_addr2", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr2_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+	else {
-+		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	else {
++//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
++	sprintf(buf, "work_%s_bbi_dport1", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_bbi_port1_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++//	else {
++//			printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
++//	}
++	sprintf(buf, "work_%s_bbi_dport2", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_bbi_port2_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
 +	}
 +
 +	return 0;
 +#endif  /* CONFIG_PROC_FS */
 +}
 +
-+static void work_rx_timer_cb(struct timer_list *t) {
++static void work_rx_timer_cb(struct timer_list* t) {
 +	struct gfar_priv_rx_q *rx_queue = from_timer(rx_queue, t, rx_timer);
 +	struct gfar_priv_grp *grp = rx_queue->grp;
 +	if (rx_queue->starving) {
@@ -724,6 +1006,14 @@ index 000000000..00ac37a7f
 +	return addr == priv->tsi_dest_addr2;
 +}
 +
++static inline bool matches_bbi1_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == priv->bbi_dport1;
++}
++
++static inline bool matches_bbi2_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == priv->bbi_dport2;
++}
++
 +static inline bool ipv4_is_our_ip(const struct gfar_private *priv, __be32 addr) {
 +	return addr == priv->f_ipv4;
 +}
@@ -735,7 +1025,6 @@ index 000000000..00ac37a7f
 +
 +	// WORK:  Handle only IP packets where MAC=multicast or MAC=our
 +	if (eth->h_proto == ETH_P_IP && matches_mac) {
-+
 +		const struct iphdr *ipv4 = (struct iphdr *) (eth_pkt + ETH_HLEN);
 +
 +		// TSI:  TSoIP is only UDP
@@ -746,24 +1035,33 @@ index 000000000..00ac37a7f
 +			// TSI1:  if TSI1 is enabled and PORT=matching and IP=matching-TSI1-IP
 +			if (priv->tsi_dport1 != 0 && matches_tsi1_port(priv, udp->dest) && matches_tsi1_addr(priv, ipv4->daddr)) {
 +
-+				return NET_BYPASS_STATUS_USER_TSI1_PACKET;
++				return NET_BYPASS_TYPE_TSI1;
 +			}
 +
 +			// TSI2:  if TSI2 is enabled and PORT=matching and IP=matching-TSI2-IP
 +			if (priv->tsi_dport2 != 0 && matches_tsi2_port(priv, udp->dest) && matches_tsi2_addr(priv, ipv4->daddr)) {
 +
-+				return NET_BYPASS_STATUS_USER_TSI2_PACKET;
++				return NET_BYPASS_TYPE_TSI2;
++			}
++
++			// BBI1:  if BBI is enabled and PORT=matching
++			if (priv->bbi_dport1 != 0 && matches_bbi1_port(priv, udp->dest)) {
++				return NET_BYPASS_TYPE_BBI1;
++			}
++			// BBI2:  if BBI is enabled and PORT=matching
++			if (priv->bbi_dport2 != 0 && matches_bbi2_port(priv, udp->dest)) {
++				return NET_BYPASS_TYPE_BBI2;
 +			}
 +		}
 +
 +
 +		// IP-BROADCAST:  If addressed to IP=!our
 +		if (ipv4_is_our_ip(priv, ipv4->daddr) == false && ipv4_is_multicast_local(ipv4->daddr) == false) {
-+			return NET_BYPASS_STATUS_USER_IP_TRANSFER;
++			return NET_BYPASS_TYPE_IP;
 +		}
 +	}
 +
-+	return NET_BYPASS_STATUS_HANDLED_BY_KERNEL;
++	return NET_BYPASS_TYPE_INVALID;
 +}
 +
 +int work_allocate_buffer(struct gfar_priv_rx_q * rx_queue) {
@@ -780,7 +1078,7 @@ index 000000000..00ac37a7f
 +
 +	for (i = 0; i < rx_queue->rx_ring_size; i++) {
 +		struct work_priv_rx_pkt *pktbuff = &rx_queue->rx_pktbuff[i];
-+		pktbuff->status = NET_BYPASS_STATUS_FREE_PACKET;
++		pktbuff->status = NET_BYPASS_STATUS_FREE;
 +	}
 +	return 0;
 +}
@@ -838,7 +1136,7 @@ index 000000000..00ac37a7f
 +	}
 +
 +	pktbuff->dma = addr;
-+	pktbuff->status = NET_BYPASS_STATUS_PACKET_IN_DMA;
++	pktbuff->status = NET_BYPASS_STATUS_DMA;
 +	pktbuff->size = 0;
 +
 +	return true;
@@ -858,9 +1156,9 @@ index 000000000..00ac37a7f
 +		pktbuff = &rx_queue->rx_pktbuff[i];
 +
 +		// Do not reuse buffer, when it's still in use by the application
-+		if (pktbuff->status != NET_BYPASS_STATUS_FREE_PACKET) {
++		if (pktbuff->status != NET_BYPASS_STATUS_FREE) {
 +//			printk_10s(KERN_ERR "Status(%d of %d) is 0x%x instead of 0x%x (free)!\n",
-+//			           i, i+alloc_cnt+1, pktbuff->status, NET_BYPASS_STATUS_FREE_PACKET);
++//			           i, i+alloc_cnt+1, pktbuff->status, NET_BYPASS_STATUS_FREE);
 +			rx_queue->starving = 1;
 +			break;
 +		}
@@ -871,7 +1169,7 @@ index 000000000..00ac37a7f
 +				break;
 +			}
 +		}
-+		pktbuff->status = NET_BYPASS_STATUS_PACKET_IN_DMA;
++		pktbuff->status = NET_BYPASS_STATUS_DMA;
 +
 +		dma_sync_single_range_for_device(rx_queue->dev, pktbuff->dma, 0,
 +		                                 sizeof(pktbuff->frame), DMA_FROM_DEVICE);
@@ -901,13 +1199,13 @@ index 000000000..00ac37a7f
 +	unsigned int size = lstatus & BD_LENGTH_MASK;
 +
 +
-+	if (unlikely(pktbuff->status != NET_BYPASS_STATUS_PACKET_IN_DMA)) {
-+//		if ((pktbuff->status & NET_BYPASS_MASK_USER_KERNEL) > 0) {
++	if (unlikely(pktbuff->status != NET_BYPASS_STATUS_DMA)) {
++//		if (pktbuff->status == NET_BYPASS_STATUS_USER || pktbuff->status NET_BYPASS_STATUS_KERNEL) {
 +//			printk_10s(KERN_NOTICE "Dropping packet because userspace is too slow!\n");
 +//		}
 +//		else {
 +//			printk_10s(KERN_ERR "ERROR: %s: status[%d]=0x%x instead of 0x%x!\n", __func__,
-+//			       rx_queue->next_to_clean, pktbuff->status, NET_BYPASS_STATUS_PACKET_IN_DMA);
++//			       rx_queue->next_to_clean, pktbuff->status, NET_BYPASS_STATUS_DMA);
 +//		}
 +		rx_queue->overload_drops ++;
 +		rx_queue->starving = 1;
@@ -936,37 +1234,33 @@ index 000000000..00ac37a7f
 +
 +	pktbuff->size = size - pktbuff->offset;
 +
-+	pktbuff->status = work_classify_packet(priv, pktbuff->frame + pktbuff->offset);
++	pktbuff->type = work_classify_packet(priv, pktbuff->frame + pktbuff->offset);
 +
-+	switch (pktbuff->status) {
-+		case NET_BYPASS_STATUS_USER_IP_TRANSFER:
-+		case NET_BYPASS_STATUS_USER_TSI1_PACKET:
-+		case NET_BYPASS_STATUS_USER_TSI2_PACKET:
-+			// will be read by userspace
++	/* Status must be set as the last action! */
++	switch (pktbuff->type) {
++		case NET_BYPASS_TYPE_IP:
++		case NET_BYPASS_TYPE_TSI1:
++		case NET_BYPASS_TYPE_TSI2:
++		case NET_BYPASS_TYPE_BBI1:
++		case NET_BYPASS_TYPE_BBI2:
++			pktbuff->status = NET_BYPASS_STATUS_USER;
 +			break;
 +
-+		case NET_BYPASS_STATUS_FREE_PACKET:
-+		case NET_BYPASS_STATUS_PACKET_IN_DMA:
-+			printk_10s(KERN_NOTICE "Invalid packet status from work_classify_packet(): %d\n", pktbuff->status);
-+			break;
-+
-+		case NET_BYPASS_STATUS_HANDLED_BY_KERNEL:
++		case NET_BYPASS_TYPE_INVALID:
 +			skb = netdev_alloc_skb(rx_queue->ndev, size);
 +			if (!skb) return NULL;
 +			memcpy(skb_put(skb, size), pktbuff->frame, size);
++			pktbuff->status = NET_BYPASS_STATUS_KERNEL;
 +			break;
 +	}
 +	return skb;
 +}
-+
-+
-+
 diff --git a/drivers/net/ethernet/freescale/gianfar_work.h b/drivers/net/ethernet/freescale/gianfar_work.h
 new file mode 100644
 index 000000000..584d1e961
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.h
-@@ -0,0 +1,107 @@
+@@ -0,0 +1,111 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -1029,19 +1323,22 @@ index 000000000..584d1e961
 +
 +
 +
-+#define NET_BYPASS_MASK_USER                   0x0100    // packets with data for application
-+#define NET_BYPASS_STATUS_USER_IP_TRANSFER     0x0101    // packets for IP transmission
-+#define NET_BYPASS_STATUS_USER_TSI1_PACKET     0x0102    // TSoIP packets - stream 1
-+#define NET_BYPASS_STATUS_USER_TSI2_PACKET     0x0103    // TSoIP packets - stream 2
 +
-+#define NET_BYPASS_MASK_KERNEL                 0x0200
-+#define NET_BYPASS_STATUS_HANDLED_BY_KERNEL    0x0201     // packets for Linux/system
++/* Up to 8 different packet status */
++#define NET_BYPASS_STATUS_INVALID      (0)         /* Packet is invalid - must not happen! */
++#define NET_BYPASS_STATUS_FREE         (1 << 0)    /* Packet was fully read from userspace */
++#define NET_BYPASS_STATUS_DMA          (1 << 1)    /* Packet is assigned to DMA to be filled */
++#define NET_BYPASS_STATUS_USER         (1 << 2)    /* Packet is filled and for userspace */
++#define NET_BYPASS_STATUS_KERNEL       (1 << 3)    /* Packet is filled and for kernel */
 +
-+#define NET_BYPASS_STATUS_FREE_PACKET          0x0401     // packets read-out by application
++/* Up to 256 different packet types */
++#define NET_BYPASS_TYPE_INVALID        (0)         /* Invalid type */
++#define NET_BYPASS_TYPE_IP             (1)         /* Packet for IP transmission */
++#define NET_BYPASS_TYPE_TSI1           (2)         /* Packet for Transport Stream Input 1 */
++#define NET_BYPASS_TYPE_TSI2           (3)         /* Packet for Transport Stream Input 2 */
++#define NET_BYPASS_TYPE_BBI1           (4)         /* Packet for Baseband Input 1 */
++#define NET_BYPASS_TYPE_BBI2           (5)         /* Packet for Baseband Input 2 */
 +
-+#define NET_BYPASS_STATUS_PACKET_IN_DMA        0x0801     // packets waiting to be filled by DMA
-+
-+#define NET_BYPASS_MASK_USER_KERNEL            (NET_BYPASS_MASK_USER | NET_BYPASS_MASK_KERNEL)
 +
 +
 +
@@ -1053,12 +1350,13 @@ index 000000000..584d1e961
 +#define STARVING_RATE   (HZ/200)
 +
 +struct work_priv_rx_pkt {
-+	uint32_t status;
++	uint8_t status;
++	uint8_t type;
 +	int32_t size;
 +	int32_t offset;
 +	dma_addr_t dma;    // uint64_t due to CONFIG_ARCH_DMA_ADDR_T_64BIT
 +	uint32_t drops;
-+	uint8_t reserved[128-4*sizeof(uint32_t)-sizeof(dma_addr_t)];
++	uint8_t reserved[128-2*sizeof(uint8_t)-3*sizeof(uint32_t)-sizeof(dma_addr_t)];
 +	uint8_t frame[WORK_JUMBO_BUFFER_SIZE];
 +} __attribute__((packed));
 +

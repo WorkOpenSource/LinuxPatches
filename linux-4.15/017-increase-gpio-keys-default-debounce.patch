@@ -38,7 +38,7 @@ diff --git a/drivers/input/keyboard/gpio_keys.c b/drivers/input/keyboard/gpio_ke
 index e9f0ebf32..e1653a3a3 100644
 --- a/drivers/input/keyboard/gpio_keys.c
 +++ b/drivers/input/keyboard/gpio_keys.c
-@@ -724,7 +724,7 @@ gpio_keys_get_devtree_pdata(struct device *dev)
+@@ -723,7 +723,7 @@ gpio_keys_get_devtree_pdata(struct device *dev)
  
  		if (fwnode_property_read_u32(child, "debounce-interval",
  					 &button->debounce_interval))

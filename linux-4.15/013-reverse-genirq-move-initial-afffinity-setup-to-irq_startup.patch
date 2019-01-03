@@ -36,7 +36,7 @@ diff --git a/kernel/irq/chip.c b/kernel/irq/chip.c
 index c69357a43..623f1e2de 100644
 --- a/kernel/irq/chip.c
 +++ b/kernel/irq/chip.c
-@@ -268,11 +268,9 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
+@@ -268,10 +268,8 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
  		switch (__irq_startup_managed(desc, aff, force)) {
  		case IRQ_STARTUP_NORMAL:
  			ret = __irq_startup(desc);
@@ -47,7 +47,6 @@ index c69357a43..623f1e2de 100644
  			ret = __irq_startup(desc);
  			break;
  		case IRQ_STARTUP_ABORT:
- 			return 0;
 diff --git a/kernel/irq/manage.c b/kernel/irq/manage.c
 index 0f922729b..7ffc53313 100644
 --- a/kernel/irq/manage.c
