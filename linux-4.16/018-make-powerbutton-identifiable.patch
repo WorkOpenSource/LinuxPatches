@@ -1,0 +1,27 @@
+Currently the ACPI creates two power-button devices. Both have the same
+name but different functionality. To identify the right one, the ACPI BID
+is added to the name.
+
+diff --git a/drivers/acpi/button.c b/drivers/acpi/button.c
+index ef1856b1..b5ebb6a6 100644
+--- a/drivers/acpi/button.c
++++ b/drivers/acpi/button.c
+@@ -474,7 +474,8 @@ static int acpi_button_add(struct acpi_device *device)
+ 	if (!strcmp(hid, ACPI_BUTTON_HID_POWER) ||
+ 	    !strcmp(hid, ACPI_BUTTON_HID_POWERF)) {
+ 		button->type = ACPI_BUTTON_TYPE_POWER;
+-		strcpy(name, ACPI_BUTTON_DEVICE_NAME_POWER);
++		sprintf(name, "%s [%s]",
++			ACPI_BUTTON_DEVICE_NAME_POWER, acpi_device_bid(device));
+ 		sprintf(class, "%s/%s",
+ 			ACPI_BUTTON_CLASS, ACPI_BUTTON_SUBCLASS_POWER);
+ 	} else if (!strcmp(hid, ACPI_BUTTON_HID_SLEEP) ||
+@@ -535,7 +536,7 @@ static int acpi_button_add(struct acpi_device *device)
+ 	}
+ 
+ 	device_init_wakeup(&device->dev, true);
+-	printk(KERN_INFO PREFIX "%s [%s]\n", name, acpi_device_bid(device));
++	printk(KERN_INFO PREFIX "%s\n", name);
+ 	return 0;
+ 
+  err_remove_fs:
