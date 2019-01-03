@@ -464,7 +464,7 @@ diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
 index 05813fbf3..851975515 100644
 --- a/drivers/gpio/gpio-max7301.c
 +++ b/drivers/gpio/gpio-max7301.c
-@@ -18,31 +18,47 @@
+@@ -18,25 +18,40 @@
  #include <linux/spi/spi.h>
  #include <linux/spi/max7301.h>
  
@@ -491,7 +491,7 @@ index 05813fbf3..851975515 100644
 -	u16 word = ((reg & 0x7F) << 8) | (val & 0xFF);
 +	u16 word = cpu_to_be16(((reg & 0x7F) << 8) | (val & 0xFF));
  
- 	return spi_write_then_read(spi, &word, sizeof(word), NULL, 0);
+ 	return spi_write(spi, (const u8 *)&word, sizeof(word));
  }
 +EXPORT_SYMBOL_GPL(max7301_spi_write);
  
@@ -506,8 +506,11 @@ index 05813fbf3..851975515 100644
  
 -	word = 0x8000 | (reg << 8);
 +	word = cpu_to_be16(0x8000 | (reg << 8));
- 	ret = spi_write_then_read(spi, &word, sizeof(word), &word,
- 				  sizeof(word));
+ 	ret = spi_write(spi, (const u8 *)&word, sizeof(word));
+ 	if (ret)
+ 		return ret;
+@@ -47,8 +62,9 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	ret = spi_read(spi, (u8 *)&word, sizeof(word));
  	if (ret)
  		return ret;
 -	return word & 0xff;
@@ -517,7 +520,7 @@ index 05813fbf3..851975515 100644
  
  static int max7301_probe(struct spi_device *spi)
  {
-@@ -50,7 +66,7 @@ static int max7301_probe(struct spi_device *spi)
+@@ -56,7 +72,7 @@ static int max7301_probe(struct spi_device *spi)
  	int ret;
  
  	/* bits_per_word cannot be configured in platform data */
@@ -526,7 +529,7 @@ index 05813fbf3..851975515 100644
  	ret = spi_setup(spi);
  	if (ret < 0)
  		return ret;
-@@ -64,6 +80,12 @@ static int max7301_probe(struct spi_device *spi)
+@@ -70,6 +86,12 @@ static int max7301_probe(struct spi_device *spi)
  	ts->dev = &spi->dev;
  
  	ret = __max730x_probe(ts);
