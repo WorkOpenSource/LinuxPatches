@@ -94,7 +94,7 @@ new file mode 100644
 index 000000000000..b4a94998969d
 --- /dev/null
 +++ b/drivers/misc/work92107/dmdif.c
-@@ -0,0 +1,567 @@
+@@ -0,0 +1,551 @@
 +/*
 + * dmdif.c -- Demodulator interface driver
 + *
@@ -491,22 +491,6 @@ index 000000000000..b4a94998969d
 +        pldat->msg_enable = level;
 +}
 +
-+static int dmd_eth_ethtool_getsettings(struct net_device *ndev,
-+        struct ethtool_cmd *cmd)
-+{
-+        cmd->supported          = 0;
-+        cmd->advertising        = 0;
-+        ethtool_cmd_speed_set(cmd, SPEED_10);
-+        cmd->duplex             = DUPLEX_FULL;
-+        cmd->port               = PORT_TP;
-+        cmd->phy_address        = 0;
-+        cmd->transceiver        = XCVR_INTERNAL;
-+        cmd->autoneg            = AUTONEG_DISABLE;
-+        cmd->maxtxpkt           = 0;
-+        cmd->maxrxpkt           = 0;
-+        return 0;
-+}
-+
 +static const struct ethtool_ops dmd_eth_ethtool_ops = {
 +        .get_drvinfo    = dmd_eth_ethtool_getdrvinfo,
 +        .get_msglevel   = dmd_eth_ethtool_getmsglevel,
@@ -720,7 +704,7 @@ new file mode 100644
 index 000000000000..ec3305eff373
 --- /dev/null
 +++ b/drivers/misc/work92107/satif.c
-@@ -0,0 +1,544 @@
+@@ -0,0 +1,528 @@
 +/*
 + * satif.c -- Satellite interface driver
 + *
@@ -1063,22 +1047,6 @@ index 000000000000..ec3305eff373
 +{
 +	struct satif_module_data *module_data = netdev_priv(ndev);
 +	module_data->msg_enable = level;
-+}
-+
-+static int sat_eth_ethtool_getsettings(struct net_device *ndev,
-+	struct ethtool_cmd *cmd)
-+{
-+	cmd->supported          = 0;
-+	cmd->advertising        = 0;
-+	ethtool_cmd_speed_set(cmd, SPEED_10);
-+	cmd->duplex             = DUPLEX_FULL;
-+	cmd->port               = PORT_TP;
-+	cmd->phy_address        = 0;
-+	cmd->transceiver        = XCVR_INTERNAL;
-+	cmd->autoneg            = AUTONEG_DISABLE;
-+	cmd->maxtxpkt           = 0;
-+	cmd->maxrxpkt           = 0;
-+	return 0;
 +}
 +
 +static const struct ethtool_ops sat_eth_ethtool_ops = {

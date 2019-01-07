@@ -103,7 +103,7 @@ index 7f837006b..b4f9e66b8 100644
  
  	/* Initialize the Minimum Frame Length Register */
  	gfar_write(&regs->minflr, MINFLR_INIT_SETTINGS);
-@@ -1465,6 +1489,15 @@ static int gfar_probe(struct platform_device *ofdev)
+@@ -1463,6 +1487,15 @@ static int gfar_probe(struct platform_device *ofdev)
  		netdev_info(dev, "TX BD ring size for Q[%d]: %d\n",
  			    i, priv->tx_queue[i]->tx_ring_size);
  
@@ -119,7 +119,7 @@ index 7f837006b..b4f9e66b8 100644
  	return 0;
  
  register_fail:
-@@ -2050,8 +2083,14 @@ static void free_skb_resources(struct gfar_private *priv)
+@@ -2043,8 +2076,14 @@ static void free_skb_resources(struct gfar_private *priv)
  
  	for (i = 0; i < priv->num_rx_queues; i++) {
  		rx_queue = priv->rx_queue[i];
@@ -134,7 +134,7 @@ index 7f837006b..b4f9e66b8 100644
  	}
  
  	dma_free_coherent(priv->dev,
-@@ -2790,7 +2829,7 @@ static bool gfar_new_page(struct gfar_priv_rx_q *rxq, struct gfar_rx_buff *rxb)
+@@ -2783,7 +2822,7 @@ static bool gfar_new_page(struct gfar_priv_rx_q *rxq, struct gfar_rx_buff *rxb)
  	return true;
  }
  
@@ -143,7 +143,7 @@ index 7f837006b..b4f9e66b8 100644
  {
  	struct gfar_private *priv = netdev_priv(rx_queue->ndev);
  	struct gfar_extra_stats *estats = &priv->extra_stats;
-@@ -3101,6 +3140,8 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3094,6 +3133,8 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  		u32 lstatus;
  
  		if (cleaned_cnt >= GFAR_RX_BUFF_ALLOC) {
@@ -152,7 +152,7 @@ index 7f837006b..b4f9e66b8 100644
  			gfar_alloc_rx_buffs(rx_queue, cleaned_cnt);
  			cleaned_cnt = 0;
  		}
-@@ -3113,10 +3154,19 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3106,10 +3147,19 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  		/* order rx buffer descriptor reads */
  		rmb();
  
@@ -172,7 +172,7 @@ index 7f837006b..b4f9e66b8 100644
  
  		cleaned_cnt++;
  		howmany++;
-@@ -3140,6 +3190,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3133,6 +3183,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  			continue;
  		}
  
@@ -184,7 +184,7 @@ index 7f837006b..b4f9e66b8 100644
  		/* Increment the number of packets */
  		total_pkts++;
  		total_bytes += skb->len;
-@@ -3160,8 +3215,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
+@@ -3153,8 +3208,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
  	rx_queue->stats.rx_packets += total_pkts;
  	rx_queue->stats.rx_bytes += total_bytes;
  
@@ -197,7 +197,7 @@ index 7f837006b..b4f9e66b8 100644
  
  	/* Update Last Free RxBD pointer for LFC */
  	if (unlikely(priv->tx_actual_en)) {
-@@ -3779,6 +3837,10 @@ static const struct of_device_id gfar_match[] =
+@@ -3772,6 +3830,10 @@ static const struct of_device_id gfar_match[] =
  		.compatible = "gianfar",
  	},
  	{
