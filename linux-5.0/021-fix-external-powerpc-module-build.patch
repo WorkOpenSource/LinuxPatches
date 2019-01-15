@@ -1,0 +1,33 @@
+The stackprotector (stack_protector_prepare) creates in ./arch/powerpc/Makefile
+a dependency to prepare0 which is resolved in ./Makefile only, when
+KBUILD_EXTMOD is empty.
+
+This leads to the following error message when building external modules:
+
+	$ ARCH=powerpc CROSS_COMPILE=[PATH_TO_TOOLCHAIN]/powerpc-linux- make -C \
+	[PATH_TO_LINUX_SRC] M=[PATH_TO_MODULES_SRC] modules
+	make: Entering directory `[PATH_TO_LINUX_SRC]'
+	make: *** No rule to make target `prepare0', needed by `stack_protector_prepare'.  Stop.
+	make: Leaving directory `[PATH_TO_LINUX_SRC]'
+
+Since the prepare0 seems to fulfill no action,
+
+
+See https://lore.kernel.org/patchwork/patch/1030807/ for further discussion
+
+diff --git a/Makefile b/Makefile
+index 499b96810995..326b0c352622 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1588,7 +1588,10 @@ help:
+ 	@echo  '  clean           - remove generated files in module directory only'
+ 	@echo  ''
+ 
+-PHONY += prepare
++PHONY += prepare prepare0
++
++prepare0: ;
++
+ prepare:
+ 	$(cmd_crmodverdir)
+ endif # KBUILD_EXTMOD
