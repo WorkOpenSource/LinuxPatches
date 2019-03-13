@@ -1,0 +1,48 @@
+Workaround to get Linux compiling on powerpc-buildroot-linux-uclibcspe GCC v8.3.
+
+Otherwise you get:
+
+    CC      scripts/mod/empty.o
+  powerpc-linux-gcc.br_real: error: unrecognized argument in option '-mcpu=powerpc'
+  powerpc-linux-gcc.br_real: note: valid arguments to '-mcpu=' are: 8540 8548 native
+  powerpc-linux-gcc.br_real: error: unrecognized argument in option '-mcpu=powerpc64'
+  powerpc-linux-gcc.br_real: note: valid arguments to '-mcpu=' are: 8540 8548 native
+  powerpc-linux-gcc.br_real: error: unrecognized argument in option '-mcpu=powerpc'
+  powerpc-linux-gcc.br_real: note: valid arguments to '-mcpu=' are: 8540 8548 native
+
+
+diff --git a/arch/powerpc/Makefile b/arch/powerpc/Makefile
+index c4c03992ee82..b0420d9c1029 100644
+--- a/arch/powerpc/Makefile
++++ b/arch/powerpc/Makefile
+@@ -24,8 +24,9 @@ ifdef CONFIG_PPC32
+ # or platform code sets later on the command line, but they are needed
+ # to set a sane 32-bit cpu target for the 64-bit cross compiler which
+ # may default to the wrong ISA.
+-KBUILD_CFLAGS		+= -mcpu=powerpc
+-KBUILD_AFLAGS		+= -mcpu=powerpc
++# WORK: Removed for GGC 8.x PowerpcSPE
++#KBUILD_CFLAGS		+= -mcpu=powerpc
++#KBUILD_AFLAGS		+= -mcpu=powerpc
+ endif
+ endif
+ endif
+@@ -157,7 +158,8 @@ CFLAGS-$(CONFIG_GENERIC_CPU) += $(call cc-option,-mtune=power7,$(call cc-option,
+ CFLAGS-$(CONFIG_GENERIC_CPU) += $(call cc-option,-mcpu=power5,-mcpu=power4)
+ endif
+ else
+-CFLAGS-$(CONFIG_GENERIC_CPU) += -mcpu=powerpc64
++# WORK: Removed for GGC 8.x PowerpcSPE
++# CFLAGS-$(CONFIG_GENERIC_CPU) += -mcpu=powerpc64
+ endif
+ 
+ ifdef CONFIG_FUNCTION_TRACER
+@@ -188,7 +190,7 @@ ifdef CONFIG_PPC32
+ ifdef CONFIG_PPC_E500MC
+ CFLAGS-y += $(call cc-option,-mcpu=e500mc,-mcpu=powerpc)
+ else
+-CFLAGS-$(CONFIG_E500) += $(call cc-option,-mcpu=8540 -msoft-float,-mcpu=powerpc)
++CFLAGS-$(CONFIG_E500) += $(call cc-option,-mcpu=8540 -msoft-float,-mcpu=8540 -msoft-float,-mcpu=powerpc)
+ endif
+ endif
+ 
