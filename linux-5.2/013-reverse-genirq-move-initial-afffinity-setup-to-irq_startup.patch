@@ -1,0 +1,48 @@
+diff --git a/kernel/irq/chip.c b/kernel/irq/chip.c
+index b76703b2c0af..e9ce0ab81c28 100644
+--- a/kernel/irq/chip.c
++++ b/kernel/irq/chip.c
+@@ -266,10 +266,8 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
+ 		switch (__irq_startup_managed(desc, aff, force)) {
+ 		case IRQ_STARTUP_NORMAL:
+ 			ret = __irq_startup(desc);
+-			irq_setup_affinity(desc);
+ 			break;
+ 		case IRQ_STARTUP_MANAGED:
+-			irq_do_set_affinity(d, aff, false);
+ 			ret = __irq_startup(desc);
+ 			break;
+ 		case IRQ_STARTUP_ABORT:
+diff --git a/kernel/irq/manage.c b/kernel/irq/manage.c
+index e8f7f179bf77..b22eefa53455 100644
+--- a/kernel/irq/manage.c
++++ b/kernel/irq/manage.c
+@@ -1546,12 +1546,6 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
+ 		if (new->flags & IRQF_ONESHOT)
+ 			desc->istate |= IRQS_ONESHOT;
+ 
+-		/* Exclude IRQ from balancing if requested */
+-		if (new->flags & IRQF_NOBALANCING) {
+-			irq_settings_set_no_balancing(desc);
+-			irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
+-		}
+-
+ 		if (irq_settings_can_autoenable(desc)) {
+ 			irq_startup(desc, IRQ_RESEND, IRQ_START_COND);
+ 		} else {
+@@ -1566,6 +1560,15 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
+ 			desc->depth = 1;
+ 		}
+ 
++		/* Exclude IRQ from balancing if requested */
++		if (new->flags & IRQF_NOBALANCING) {
++			irq_settings_set_no_balancing(desc);
++			irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
++		}
++
++		/* Set default affinity mask once everything is setup */
++		irq_setup_affinity(desc);
++
+ 	} else if (new->flags & IRQF_TRIGGER_MASK) {
+ 		unsigned int nmsk = new->flags & IRQF_TRIGGER_MASK;
+ 		unsigned int omsk = irqd_get_trigger_type(&desc->irq_data);

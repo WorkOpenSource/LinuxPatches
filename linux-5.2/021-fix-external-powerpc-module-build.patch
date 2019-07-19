@@ -1,0 +1,16 @@
+diff --git a/Makefile b/Makefile
+index 3e4868a6498b..ef1a0b28e2e9 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1630,7 +1630,10 @@ help:
+ 	@echo  '  clean           - remove generated files in module directory only'
+ 	@echo  ''
+ 
+-PHONY += prepare
++PHONY += prepare prepare0
++
++prepare0: ;
++
+ prepare:
+ 	$(cmd_crmodverdir)
+ endif # KBUILD_EXTMOD
