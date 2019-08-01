@@ -1,0 +1,37 @@
+diff --git a/scripts/setlocalversion b/scripts/setlocalversion
+index 365b3c2b8f43..8a617fab5ce4 100755
+--- a/scripts/setlocalversion
++++ b/scripts/setlocalversion
+@@ -79,12 +79,12 @@ scm_version()
+ 		# it fails. Note that git-diff-index does not refresh the
+ 		# index, so it may give misleading results. See
+ 		# git-update-index(1), git-diff-index(1), and git-status(1).
+-		if {
+-			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
+-			git diff-index --name-only HEAD
+-		} | grep -qvE '^(.. )?scripts/package'; then
+-			printf '%s' -dirty
+-		fi
++#		if {
++#			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
++#			git diff-index --name-only HEAD
++#		} | grep -qvE '^(.. )?scripts/package'; then
++#			printf '%s' -dirty
++#		fi
+ 
+ 		# All done with git
+ 		return
+@@ -106,9 +106,10 @@ scm_version()
+ 
+ 		# Are there uncommitted changes?
+ 		# These are represented by + after the changeset id.
+-		case "$hgid" in
+-			*+|*+\ *) printf '%s' -dirty ;;
+-		esac
++# WORK: removed to ignore '-dirty' since we patch Kernel on purpose
++#		case "$hgid" in
++#			*+|*+\ *) printf '%s' -dirty ;;
++#		esac
+ 
+ 		# All done with mercurial
+ 		return

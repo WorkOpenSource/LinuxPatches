@@ -1,0 +1,13 @@
+diff --git a/drivers/input/keyboard/gpio_keys.c b/drivers/input/keyboard/gpio_keys.c
+index a23c23979a2e..2daf8cc504dd 100644
+--- a/drivers/input/keyboard/gpio_keys.c
++++ b/drivers/input/keyboard/gpio_keys.c
+@@ -750,7 +750,7 @@ gpio_keys_get_devtree_pdata(struct device *dev)
+ 
+ 		if (fwnode_property_read_u32(child, "debounce-interval",
+ 					 &button->debounce_interval))
+-			button->debounce_interval = 5;
++			button->debounce_interval = 50;
+ 
+ 		button++;
+ 	}
