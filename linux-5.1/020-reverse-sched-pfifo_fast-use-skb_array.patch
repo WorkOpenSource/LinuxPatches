@@ -24,10 +24,10 @@ Date:   Thu Dec 7 09:58:19 2017 -0800
     Signed-off-by: David S. Miller <davem@davemloft.net>
 
 diff --git a/net/sched/sch_api.c b/net/sched/sch_api.c
-index ca3b0f46de53..75ac50adea3e 100644
+index fb8f138b9776..ef2ee5e796df 100644
 --- a/net/sched/sch_api.c
 +++ b/net/sched/sch_api.c
-@@ -1079,11 +1079,6 @@ static int qdisc_graft(struct net_device *dev, struct Qdisc *parent,
+@@ -1073,11 +1073,6 @@ static int qdisc_graft(struct net_device *dev, struct Qdisc *parent,
  		unsigned long cl;
  		int err;
  
@@ -40,7 +40,7 @@ index ca3b0f46de53..75ac50adea3e 100644
  			return -EOPNOTSUPP;
  
 diff --git a/net/sched/sch_generic.c b/net/sched/sch_generic.c
-index de1663f7d3ad..91f8543ced45 100644
+index a117d9260558..290982bcea33 100644
 --- a/net/sched/sch_generic.c
 +++ b/net/sched/sch_generic.c
 @@ -26,7 +26,6 @@
@@ -51,7 +51,7 @@ index de1663f7d3ad..91f8543ced45 100644
  #include <linux/if_macvlan.h>
  #include <net/sch_generic.h>
  #include <net/pkt_sched.h>
-@@ -619,103 +618,94 @@ static const u8 prio2band[TC_PRIO_MAX + 1] = {
+@@ -619,102 +618,94 @@ static const u8 prio2band[TC_PRIO_MAX + 1] = {
  
  /*
   * Private data for a pfifo_fast scheduler containing:
@@ -106,7 +106,7 @@ index de1663f7d3ad..91f8543ced45 100644
 +		return NET_XMIT_SUCCESS;
 +	}
  
--	qdisc_qstats_cpu_qlen_inc(qdisc);
+-	qdisc_qstats_atomic_qlen_inc(qdisc);
 -	/* Note: skb can not be used after skb_array_produce(),
 -	 * so we better not use qdisc_qstats_cpu_backlog_inc()
 -	 */
@@ -144,7 +144,7 @@ index de1663f7d3ad..91f8543ced45 100644
 -	if (likely(skb)) {
 -		qdisc_qstats_cpu_backlog_dec(qdisc, skb);
 -		qdisc_bstats_cpu_update(qdisc, skb);
--		qdisc_qstats_cpu_qlen_dec(qdisc);
+-		qdisc_qstats_atomic_qlen_dec(qdisc);
 +		return skb;
  	}
  
@@ -175,9 +175,8 @@ index de1663f7d3ad..91f8543ced45 100644
  static void pfifo_fast_reset(struct Qdisc *qdisc)
  {
 -	int i, band;
-+	int prio;
- 	struct pfifo_fast_priv *priv = qdisc_priv(qdisc);
- 
+-	struct pfifo_fast_priv *priv = qdisc_priv(qdisc);
+-
 -	for (band = 0; band < PFIFO_FAST_BANDS; band++) {
 -		struct skb_array *q = band2list(priv, band);
 -		struct sk_buff *skb;
@@ -191,14 +190,15 @@ index de1663f7d3ad..91f8543ced45 100644
 -		while ((skb = __skb_array_consume(q)) != NULL)
 -			kfree_skb(skb);
 -	}
--
++	int prio;
++ 	struct pfifo_fast_priv *priv = qdisc_priv(qdisc);
+ 
 -	for_each_possible_cpu(i) {
 -		struct gnet_stats_queue *q = per_cpu_ptr(qdisc->cpu_qstats, i);
 +	for (prio = 0; prio < PFIFO_FAST_BANDS; prio++)
 +		__qdisc_reset_queue(band2list(priv, prio));
  
 -		q->backlog = 0;
--		q->qlen = 0;
 -	}
 +	priv->bitmap = 0;
 +	qdisc->qstats.backlog = 0;
@@ -206,7 +206,7 @@ index de1663f7d3ad..91f8543ced45 100644
  }
  
  static int pfifo_fast_dump(struct Qdisc *qdisc, struct sk_buff *skb)
-@@ -734,48 +724,18 @@ static int pfifo_fast_dump(struct Qdisc *qdisc, struct sk_buff *skb)
+@@ -733,48 +724,18 @@ static int pfifo_fast_dump(struct Qdisc *qdisc, struct sk_buff *skb)
  static int pfifo_fast_init(struct Qdisc *qdisc, struct nlattr *opt,
  			   struct netlink_ext_ack *extack)
  {
@@ -259,7 +259,7 @@ index de1663f7d3ad..91f8543ced45 100644
  static int pfifo_fast_change_tx_queue_len(struct Qdisc *sch,
  					  unsigned int new_len)
  {
-@@ -792,6 +752,7 @@ static int pfifo_fast_change_tx_queue_len(struct Qdisc *sch,
+@@ -791,6 +752,7 @@ static int pfifo_fast_change_tx_queue_len(struct Qdisc *sch,
  	return skb_array_resize_multiple(bands, PFIFO_FAST_BANDS, new_len,
  					 GFP_KERNEL);
  }
@@ -267,7 +267,7 @@ index de1663f7d3ad..91f8543ced45 100644
  
  struct Qdisc_ops pfifo_fast_ops __read_mostly = {
  	.id		=	"pfifo_fast",
-@@ -800,12 +761,12 @@ struct Qdisc_ops pfifo_fast_ops __read_mostly = {
+@@ -799,12 +761,12 @@ struct Qdisc_ops pfifo_fast_ops __read_mostly = {
  	.dequeue	=	pfifo_fast_dequeue,
  	.peek		=	pfifo_fast_peek,
  	.init		=	pfifo_fast_init,

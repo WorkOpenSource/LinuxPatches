@@ -40,19 +40,19 @@ Date:   Fri Dec 7 13:07:55 2018 +0000
     Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
 
 diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
-index 647dfbbc4e1c..05813fbf3daf 100644
+index 258de2aa86e1..8ffb97ef5399 100644
 --- a/drivers/gpio/gpio-max7301.c
 +++ b/drivers/gpio/gpio-max7301.c
-@@ -25,7 +25,7 @@ static int max7301_spi_write(struct device *dev, unsigned int reg,
+@@ -36,7 +36,7 @@ int max7301_spi_write(struct device *dev, unsigned int reg,
  	struct spi_device *spi = to_spi_device(dev);
- 	u16 word = ((reg & 0x7F) << 8) | (val & 0xFF);
+ 	u16 word = cpu_to_be16(((reg & 0x7F) << 8) | (val & 0xFF));
  
 -	return spi_write_then_read(spi, &word, sizeof(word), NULL, 0);
 +	return spi_write(spi, (const u8 *)&word, sizeof(word));
  }
+ EXPORT_SYMBOL_GPL(max7301_spi_write);
  
- /* A read from the MAX7301 means two transfers; here, one message each */
-@@ -37,8 +37,14 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+@@ -49,8 +49,14 @@ int max7301_spi_read(struct device *dev, unsigned int reg)
  	struct spi_device *spi = to_spi_device(dev);
  
  	word = 0x8000 | (reg << 8);
