@@ -464,9 +464,15 @@ diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
 index 1307c243b4e9..258de2aa86e1 100644
 --- a/drivers/gpio/gpio-max7301.c
 +++ b/drivers/gpio/gpio-max7301.c
-@@ -15,25 +15,40 @@
+@@ -15,25 +15,46 @@
  #include <linux/spi/spi.h>
  #include <linux/spi/max7301.h>
++
++//
++// This patch depends on 009-reverse-fix-driver-for-use-with-CONFIG_VMAP_STACK.patch.
++// So first patch the patch 009, then use 'git add drivers/gpio/gpio-max7301.c'. Then
++// patch this patch and get the modifications with 'git diff'.
++//
  
 +//
 +// WORK modification: RST: directly export spi read/write functions
