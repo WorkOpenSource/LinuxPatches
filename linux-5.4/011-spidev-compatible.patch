@@ -1,0 +1,39 @@
+Allowing to address the spidev driver generically by the devicetree
+
+With this patch we can link the device in the devicetree by the compatible
+string 'spidev' - otherwise we would have to link it by a spi-controller
+which is not built in our device.
+
+Since we already use the 'spidev' in our devicetree, we have to find a way
+to keep it working - best without any misleading warnings. Thus we decided
+to remove the 'buggy DT: spidev listed directly in DT' from the code.
+
+diff --git a/drivers/spi/spidev.c b/drivers/spi/spidev.c
+index 422bac8cc3e0..101275a0d2a3 100644
+--- a/drivers/spi/spidev.c
++++ b/drivers/spi/spidev.c
+@@ -658,6 +658,7 @@ static struct class *spidev_class;
+ 
+ #ifdef CONFIG_OF
+ static const struct of_device_id spidev_dt_ids[] = {
++	{ .compatible = "spidev" },
+ 	{ .compatible = "rohm,dh2228fv" },
+ 	{ .compatible = "lineartechnology,ltc2488" },
+ 	{ .compatible = "ge,achc" },
+@@ -713,14 +714,8 @@ static int spidev_probe(struct spi_device *spi)
+ 	int			status;
+ 	unsigned long		minor;
+ 
+-	/*
+-	 * spidev should never be referenced in DT without a specific
+-	 * compatible string, it is a Linux implementation thing
+-	 * rather than a description of the hardware.
+-	 */
+-	WARN(spi->dev.of_node &&
+-	     of_device_is_compatible(spi->dev.of_node, "spidev"),
+-	     "%pOF: buggy DT: spidev listed directly in DT\n", spi->dev.of_node);
++	/* Removed 'buggy DT: spidev listed directly in DT' warning by WORK */
++	/* to support existing devicetree! */
+ 
+ 	spidev_probe_acpi(spi);
+ 
