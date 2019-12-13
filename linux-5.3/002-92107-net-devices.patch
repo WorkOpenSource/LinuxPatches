@@ -1,3 +1,6 @@
+Adding support for WORK's pseudo-devices
+
+These devices are needed for routing packets inside the device.
 diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
 index 6abfc8e92fcc..27b58a2489af 100644
 --- a/drivers/misc/Kconfig
@@ -567,15 +570,15 @@ index 000000000000..56927a4618b6
 +	ndev->ethtool_ops = &dmd_eth_ethtool_ops;
 +	ndev->watchdog_timeo = msecs_to_jiffies(2500);
 +
++	if (!is_valid_ether_addr(ndev->dev_addr))
++		eth_hw_addr_random(ndev);
 +#ifdef CONFIG_OF_NET
-+        if (!is_valid_ether_addr(ndev->dev_addr)) {
-+                const char *macaddr = of_get_mac_address(pdev->dev.of_node);
-+                if (macaddr)
-+                        memcpy(ndev->dev_addr, macaddr, ETH_ALEN);
-+        }
++	if (!is_valid_ether_addr(ndev->dev_addr)) {
++		const char *macaddr = of_get_mac_address(pdev->dev.of_node);
++		if (macaddr)
++			memcpy(ndev->dev_addr, macaddr, ETH_ALEN);
++	}
 +#endif
-+        if (!is_valid_ether_addr(ndev->dev_addr))
-+                eth_hw_addr_random(ndev);
 +
 +#if 0
 +	ndev->dev_addr[0] = 0x00;
@@ -1164,6 +1167,8 @@ index 000000000000..f1c409d1a34d
 +	}
 +	rtnl_unlock();
 +
++	if (!is_valid_ether_addr(ndev->dev_addr))
++		eth_hw_addr_random(ndev);
 +#ifdef CONFIG_OF_NET
 +	if (!is_valid_ether_addr(ndev->dev_addr)) {
 +		const char *macaddr = of_get_mac_address(pdev->dev.of_node);
@@ -1171,8 +1176,6 @@ index 000000000000..f1c409d1a34d
 +		        memcpy(ndev->dev_addr, macaddr, ETH_ALEN);
 +	}
 +#endif
-+	if (!is_valid_ether_addr(ndev->dev_addr))
-+		eth_hw_addr_random(ndev);
 +
 +	module_data->msg_enable = NETIF_MSG_LINK;
 +
