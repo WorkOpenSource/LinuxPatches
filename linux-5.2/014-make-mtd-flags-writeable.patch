@@ -1,3 +1,10 @@
+Allowing to clear the read-only flag (e.g. for changing the U-Boot env):
+
+# echo 0x400 > /sys/class/mtd/mtd4/flags
+# fw_setenv serverip 172.16.11.137
+# echo 0x800 > /sys/class/mtd/mtd4/flags 
+
+
 diff --git a/drivers/mtd/mtdcore.c b/drivers/mtd/mtdcore.c
 index 453242d6cf56..2317facd24e4 100644
 --- a/drivers/mtd/mtdcore.c

@@ -1,3 +1,11 @@
+Don't show dirty flag
+
+Since we use the official Linux tarball and patch it with our changes, we have
+a dirty Linux by definition. Since this is not a problem, we remove this flag
+from the kernel version.
+
+This patch is working with versions before Linux v4.19.82...
+
 diff --git a/scripts/setlocalversion b/scripts/setlocalversion
 index 365b3c2b8f43..8a617fab5ce4 100755
 --- a/scripts/setlocalversion

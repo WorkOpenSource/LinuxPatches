@@ -1,3 +1,6 @@
+Adding support for TQMP1020
+
+
 diff --git a/arch/powerpc/boot/Makefile b/arch/powerpc/boot/Makefile
 index 73d1f3562978..b33ee38bb9d7 100644
 --- a/arch/powerpc/boot/Makefile

@@ -1,3 +1,44 @@
+Reverting commit 'gpio: max7301: fix driver for use with CONFIG_VMAP_STACK'
+to make fronpanel display (work-disp.c) work.
+
+When reverting the patch, the correct answer (0x8401) is returned by SPI:
+
+    max7301_spi_write: word to write=0x401
+    max7301_spi_read: word to write=0x8400
+    max7301_spi_read: read word=0x8401 ret=0
+
+Without reverting this patch, we receive faultly 0x8400:
+
+    max7301_spi_write: word to write=0x401
+    max7301_spi_read: word to write=0x8400
+    max7301_spi_read: read word=0x8400 ret=0
+    SPI Error: Expected 0x01 but got 0x00 (0) - Display missing?
+
+
+
+
+
+commit 07cfa7ac9e52d3250061e3cb91acfecb905afefb
+Author: Christophe Leroy <christophe.leroy@c-s.fr>
+Date:   Fri Dec 7 13:07:55 2018 +0000
+
+    gpio: max7301: fix driver for use with CONFIG_VMAP_STACK
+    
+    commit abf221d2f51b8ce7b9959a8953f880a8b0a1400d upstream.
+    
+    spi_read() and spi_write() require DMA-safe memory. When
+    CONFIG_VMAP_STACK is selected, those functions cannot be used
+    with buffers on stack.
+    
+    This patch replaces calls to spi_read() and spi_write() by
+    spi_write_then_read() which doesn't require DMA-safe buffers.
+    
+    Fixes: 0c36ec314735 ("gpio: gpio driver for max7301 SPI GPIO expander")
+    Cc: <stable@vger.kernel.org>
+    Signed-off-by: Christophe Leroy <christophe.leroy@c-s.fr>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
 diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
 index 1307c243b4e9..b097afc86cdd 100644
 --- a/drivers/gpio/gpio-max7301.c
