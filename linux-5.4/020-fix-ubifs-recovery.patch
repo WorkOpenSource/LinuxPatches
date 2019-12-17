@@ -1,0 +1,27 @@
+This patch fixes the UBIFS recovery after a hard powercycle:
+
+    # ubiattach -m 2 -d 1
+      [...]
+    # mount /var/lib/work/
+    UBIFS (ubi1:0): Mounting in unauthenticated mode
+    UBIFS (ubi1:0): background thread "ubifs_bgt1_0" started, PID 73
+    UBIFS (ubi1:0): recovery needed
+    UBIFS (ubi1:0): background thread "ubifs_bgt1_0" stops
+    mount: /var/lib/work: mount(2) system call failed: No such file or directory.
+    #
+
+diff --git a/fs/ubifs/orphan.c b/fs/ubifs/orphan.c
+index 3b4b4114f208..61bd2324c2ba 100644
+--- a/fs/ubifs/orphan.c
++++ b/fs/ubifs/orphan.c
+@@ -685,8 +685,9 @@ static int do_kill_orphans(struct ubifs_info *c, struct ubifs_scan_leb *sleb,
+ 
+ 			ino_key_init(c, &key1, inum);
+ 			err = ubifs_tnc_lookup(c, &key1, ino);
++			/* WORK's modification: removing 'goto out_free' to fix UBIFS recovery */
+ 			if (err)
+-				goto out_free;
++				continue;
+ 
+ 			/*
+ 			 * Check whether an inode can really get deleted.
