@@ -5,24 +5,30 @@ a dirty Linux by definition. Since this is not a problem, we remove this flag
 from the kernel version.
 
 diff --git a/scripts/setlocalversion b/scripts/setlocalversion
-index 71f394106..0e8188b56 100755
+index 365b3c2b..c69958d8 100755
 --- a/scripts/setlocalversion
 +++ b/scripts/setlocalversion
-@@ -74,9 +74,10 @@ scm_version()
- 		fi
- 
- 		# Check for uncommitted changes
--		if git diff-index --name-only HEAD | grep -qv "^scripts/package"; then
+@@ -79,12 +79,13 @@ scm_version()
+ 		# it fails. Note that git-diff-index does not refresh the
+ 		# index, so it may give misleading results. See
+ 		# git-update-index(1), git-diff-index(1), and git-status(1).
+-		if {
+-			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
+-			git diff-index --name-only HEAD
+-		} | grep -qvE '^(.. )?scripts/package'; then
 -			printf '%s' -dirty
 -		fi
 +# WORK: removed to ignore '-dirty' since we patch Kernel on purpose
-+#		if git diff-index --name-only HEAD | grep -qv "^scripts/package"; then
++#		if {
++#			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
++#			git diff-index --name-only HEAD
++#		} | grep -qvE '^(.. )?scripts/package'; then
 +#			printf '%s' -dirty
 +#		fi
  
  		# All done with git
  		return
-@@ -98,9 +99,10 @@ scm_version()
+@@ -106,9 +107,10 @@ scm_version()
  
  		# Are there uncommitted changes?
  		# These are represented by + after the changeset id.

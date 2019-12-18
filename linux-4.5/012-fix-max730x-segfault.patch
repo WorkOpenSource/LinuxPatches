@@ -1,5 +1,5 @@
 diff --git a/drivers/gpio/gpio-max730x.c b/drivers/gpio/gpio-max730x.c
-index 554d33b51354..99e59d138f87 100644
+index 08807368..946d0919 100644
 --- a/drivers/gpio/gpio-max730x.c
 +++ b/drivers/gpio/gpio-max730x.c
 @@ -192,6 +192,10 @@ int __max730x_probe(struct max7301 *ts)
@@ -21,6 +21,6 @@ index 554d33b51354..99e59d138f87 100644
 -	if (ret)
 -		goto exit_destroy;
 -
- 	if (pdata && pdata->setup) {
- 		ret = pdata->setup(ts->chip.base,
- 				ts->chip.ngpio, pdata->context);
+ 	return ret;
+ 
+ exit_destroy:
