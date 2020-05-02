@@ -11,15 +11,15 @@ This patch fixes the UBIFS recovery after a hard powercycle:
     #
 
 diff --git a/fs/ubifs/orphan.c b/fs/ubifs/orphan.c
-index 3b4b4114f208..61bd2324c2ba 100644
+index 7dd740e3692d..45148b949498 100644
 --- a/fs/ubifs/orphan.c
 +++ b/fs/ubifs/orphan.c
-@@ -685,8 +685,9 @@ static int do_kill_orphans(struct ubifs_info *c, struct ubifs_scan_leb *sleb,
+@@ -688,8 +688,9 @@ static int do_kill_orphans(struct ubifs_info *c, struct ubifs_scan_leb *sleb,
  
  			ino_key_init(c, &key1, inum);
  			err = ubifs_tnc_lookup(c, &key1, ino);
 +			/* WORK's modification: removing 'goto out_free' to fix UBIFS recovery */
- 			if (err)
+ 			if (err && err != -ENOENT)
 -				goto out_free;
 +				continue;
  
