@@ -15,7 +15,7 @@ index 6a93293d31e0..85ad1faf1547 100644
  obj-$(CONFIG_UCC_GETH) += ucc_geth_driver.o
  ucc_geth_driver-objs := ucc_geth.o ucc_geth_ethtool.o
 diff --git a/drivers/net/ethernet/freescale/gianfar.c b/drivers/net/ethernet/freescale/gianfar.c
-index 51ad86417cb1..d3b302811d7d 100644
+index 2580bcd85025..d0a391e2ec9f 100644
 --- a/drivers/net/ethernet/freescale/gianfar.c
 +++ b/drivers/net/ethernet/freescale/gianfar.c
 @@ -109,7 +109,7 @@ MODULE_AUTHOR("Freescale Semiconductor, Inc");
@@ -118,7 +118,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  	}
  
  	gfar_init_bds(ndev);
-@@ -2543,6 +2573,8 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
+@@ -2547,6 +2577,8 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
  		u32 lstatus;
  
  		if (cleaned_cnt >= GFAR_RX_BUFF_ALLOC) {
@@ -127,7 +127,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  			gfar_alloc_rx_buffs(rx_queue, cleaned_cnt);
  			cleaned_cnt = 0;
  		}
-@@ -2555,10 +2587,19 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
+@@ -2559,10 +2591,19 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
  		/* order rx buffer descriptor reads */
  		rmb();
  
@@ -147,7 +147,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  
  		cleaned_cnt++;
  		howmany++;
-@@ -2582,6 +2623,11 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
+@@ -2586,6 +2627,11 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
  			continue;
  		}
  
@@ -159,7 +159,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  		gfar_process_frame(ndev, skb);
  
  		/* Increment the number of packets */
-@@ -2604,8 +2650,11 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
+@@ -2608,8 +2654,11 @@ static int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue,
  	rx_queue->stats.rx_packets += total_pkts;
  	rx_queue->stats.rx_bytes += total_bytes;
  
@@ -172,7 +172,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  
  	/* Update Last Free RxBD pointer for LFC */
  	if (unlikely(priv->tx_actual_en)) {
-@@ -3167,7 +3216,7 @@ void gfar_mac_reset(struct gfar_private *priv)
+@@ -3171,7 +3220,7 @@ void gfar_mac_reset(struct gfar_private *priv)
  
  	/* Initialize the max receive frame/buffer lengths */
  	gfar_write(&regs->maxfrm, GFAR_JUMBO_FRAME_SIZE);
@@ -181,7 +181,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  
  	/* Initialize the Minimum Frame Length Register */
  	gfar_write(&regs->minflr, MINFLR_INIT_SETTINGS);
-@@ -3450,6 +3499,15 @@ static int gfar_probe(struct platform_device *ofdev)
+@@ -3454,6 +3503,15 @@ static int gfar_probe(struct platform_device *ofdev)
  		netdev_info(dev, "TX BD ring size for Q[%d]: %d\n",
  			    i, priv->tx_queue[i]->tx_ring_size);
  
@@ -197,7 +197,7 @@ index 51ad86417cb1..d3b302811d7d 100644
  	return 0;
  
  register_fail:
-@@ -3727,6 +3785,10 @@ static const struct of_device_id gfar_match[] =
+@@ -3731,6 +3789,10 @@ static const struct of_device_id gfar_match[] =
  		.type = "network",
  		.compatible = "gianfar",
  	},
@@ -252,10 +252,10 @@ index f472a6dbbe6f..c5a985e9daeb 100644
  
 diff --git a/drivers/net/ethernet/freescale/gianfar_work.c b/drivers/net/ethernet/freescale/gianfar_work.c
 new file mode 100644
-index 000000000000..d0e41a62a287
+index 000000000000..06c5ff92410f
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,999 @@
+@@ -0,0 +1,998 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -1021,9 +1021,9 @@ index 000000000000..d0e41a62a287
 +static inline int work_classify_packet(const struct gfar_private *priv, const char* eth_pkt) {
 +
 +	const struct ethhdr *eth = (struct ethhdr *) (eth_pkt);
-+	const bool matches_mac = ether_is_multicast_only(eth->h_dest) || ether_addr_equal(eth->h_dest, priv->f_mac);
++	const bool matches_mac = ether_is_multicast_only(eth->h_dest) || ether_addr_equal(eth->h_dest, priv->f_mac) || (priv->ndev->flags & IFF_PROMISC);
 +
-+	// WORK:  Handle only IP packets where MAC=multicast or MAC=our
++	// WORK:  Handle only IP packets where  MAC=multicast  or  MAC=our  or  Promiscuous Mode
 +	if (eth->h_proto == ETH_P_IP && matches_mac) {
 +		const struct iphdr *ipv4 = (struct iphdr *) (eth_pkt + ETH_HLEN);
 +
@@ -1053,7 +1053,6 @@ index 000000000000..d0e41a62a287
 +				return NET_BYPASS_TYPE_BBI2;
 +			}
 +		}
-+
 +
 +		// IP-BROADCAST:  If addressed to IP=!our
 +		if (ipv4_is_our_ip(priv, ipv4->daddr) == false && ipv4_is_multicast_local(ipv4->daddr) == false) {
