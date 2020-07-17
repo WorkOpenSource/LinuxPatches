@@ -233,7 +233,7 @@ index f472a6dbbe6f..c5a985e9daeb 100644
  };
  
  enum gfar_irqinfo_id {
-@@ -1168,6 +1175,16 @@ struct gfar_private {
+@@ -1168,6 +1175,17 @@ struct gfar_private {
  	/*Filer table*/
  	unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
  	unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
@@ -247,6 +247,7 @@ index f472a6dbbe6f..c5a985e9daeb 100644
 +	__be32 tsi_dest_addr2;          // Destination IPv4 for TSI Stream 2 (unicast and multicast)
 +	__be16 bbi_dport1;              // UPD port for BBI Stream 1
 +	__be16 bbi_dport2;              // UPD port for BBI Stream 2
++	__be16 iqi_dport;               // UPD port for IQI Stream
  };
  
  
@@ -255,7 +256,7 @@ new file mode 100644
 index 000000000000..06c5ff92410f
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.c
-@@ -0,0 +1,998 @@
+@@ -0,0 +1,1036 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -833,6 +834,55 @@ index 000000000000..06c5ff92410f
 +};
 +
 +
++static int work_iqi_port_open(struct inode *node, struct file *file) {
++	return 0;
++}
++
++static ssize_t work_iqi_port_read(struct file *file, char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++	int to_copy;
++
++	to_copy = snprintf(buffer, size-1, "%hu", priv->iqi_dport);
++	buffer[to_copy] = '\0';
++	to_copy++;
++
++	to_copy -= copy_to_user(buf, buffer + *ppos, to_copy - *ppos);
++	return to_copy - *ppos;
++}
++
++static ssize_t work_iqi_port_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos) {
++	struct gfar_private *priv = PDE_DATA(file_inode(file));
++	char buffer[128];
++
++	if (size >= sizeof(buffer)) return -EMSGSIZE;   // Message too long
++	if (copy_from_user(buffer, buf, size) > 0) {
++		return -EINVAL;
++	}
++	buffer[size] = '\0';
++
++	if(sscanf(buffer, "%hu", &priv->iqi_dport) == 1) {
++//		printk(KERN_NOTICE "WORK: Setting IQI port to %hu\n", priv->iqi_dport);
++		return size;
++	}
++	else {
++		printk(KERN_ERR "Error parsing BBI port2!\n");
++		return -EINVAL;
++	}
++}
++
++static int work_iqi_port_close(struct inode *inode, struct file *file) {
++	return 0;
++}
++
++static const struct file_operations work_iqi_port_fops = {
++		.open = &work_iqi_port_open,
++		.read = &work_iqi_port_read,
++		.write = &work_iqi_port_write,
++		.release = &work_iqi_port_close,
++};
++
++
 +static int work_tsi_dest_addr2_open(struct inode *node, struct file *file) {
 +	return 0;
 +}
@@ -874,9 +924,6 @@ index 000000000000..06c5ff92410f
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
 +
 +	sprintf(buf, "work_%s_next_to_use", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_next_to_use_fops, priv)) {
@@ -894,62 +941,47 @@ index 000000000000..06c5ff92410f
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
 +	sprintf(buf, "work_%s_mac", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_mac_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
++
 +	sprintf(buf, "work_%s_tsi_dport1", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_port1_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
 +	sprintf(buf, "work_%s_tsi_dest_addr1", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr1_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
++
 +	sprintf(buf, "work_%s_tsi_dport2", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_port2_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
 +	sprintf(buf, "work_%s_tsi_dest_addr2", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_tsi_dest_addr2_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//		printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
++
 +	sprintf(buf, "work_%s_bbi_dport1", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_bbi_port1_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
-+//	else {
-+//			printk(KERN_NOTICE "WORK: /proc/net/%s entry created!\n",buf);
-+//	}
 +	sprintf(buf, "work_%s_bbi_dport2", dev->name);
 +	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_bbi_port2_fops, priv)) {
++		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
++		return -ENOENT;
++	}
++
++	sprintf(buf, "work_%s_iqi_dport", dev->name);
++	if (!proc_create_data(buf, S_IRUGO, init_net.proc_net, &work_iqi_port_fops, priv)) {
 +		printk(KERN_ERR "WORK: cannot create /proc/net/%s entry.\n", buf);
 +		return -ENOENT;
 +	}
@@ -1014,6 +1046,10 @@ index 000000000000..06c5ff92410f
 +	return ntohs(port) == priv->bbi_dport2;
 +}
 +
++static inline bool matches_iqi_port(const struct gfar_private *priv, uint16_t port) {
++	return ntohs(port) == priv->iqi_dport;
++}
++
 +static inline bool ipv4_is_our_ip(const struct gfar_private *priv, __be32 addr) {
 +	return addr == priv->f_ipv4;
 +}
@@ -1034,13 +1070,10 @@ index 000000000000..06c5ff92410f
 +
 +			// TSI1:  if TSI1 is enabled and PORT=matching and IP=matching-TSI1-IP
 +			if (priv->tsi_dport1 != 0 && matches_tsi1_port(priv, udp->dest) && matches_tsi1_addr(priv, ipv4->daddr)) {
-+
 +				return NET_BYPASS_TYPE_TSI1;
 +			}
-+
 +			// TSI2:  if TSI2 is enabled and PORT=matching and IP=matching-TSI2-IP
 +			if (priv->tsi_dport2 != 0 && matches_tsi2_port(priv, udp->dest) && matches_tsi2_addr(priv, ipv4->daddr)) {
-+
 +				return NET_BYPASS_TYPE_TSI2;
 +			}
 +
@@ -1051,6 +1084,11 @@ index 000000000000..06c5ff92410f
 +			// BBI2:  if BBI is enabled and PORT=matching
 +			if (priv->bbi_dport2 != 0 && matches_bbi2_port(priv, udp->dest)) {
 +				return NET_BYPASS_TYPE_BBI2;
++			}
++
++			// IQI:  if IQI is enabled and PORT=matching
++			if (priv->iqi_dport != 0 && matches_iqi_port(priv, udp->dest)) {
++				return NET_BYPASS_TYPE_IQI;
 +			}
 +		}
 +
@@ -1242,6 +1280,7 @@ index 000000000000..06c5ff92410f
 +		case NET_BYPASS_TYPE_TSI2:
 +		case NET_BYPASS_TYPE_BBI1:
 +		case NET_BYPASS_TYPE_BBI2:
++		case NET_BYPASS_TYPE_IQI:
 +			pktbuff->status = NET_BYPASS_STATUS_USER;
 +			break;
 +
@@ -1259,7 +1298,7 @@ new file mode 100644
 index 000000000000..4eee0668b374
 --- /dev/null
 +++ b/drivers/net/ethernet/freescale/gianfar_work.h
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,112 @@
 +/*
 + * drivers/net/ethernet/freescale/gianfar_work.h
 + *
@@ -1337,6 +1376,7 @@ index 000000000000..4eee0668b374
 +#define NET_BYPASS_TYPE_TSI2           (3)         /* Packet for Transport Stream Input 2 */
 +#define NET_BYPASS_TYPE_BBI1           (4)         /* Packet for Baseband Input 1 */
 +#define NET_BYPASS_TYPE_BBI2           (5)         /* Packet for Baseband Input 2 */
++#define NET_BYPASS_TYPE_IQI            (6)         /* Packet for IQ Stream Input */
 +
 +
 +
