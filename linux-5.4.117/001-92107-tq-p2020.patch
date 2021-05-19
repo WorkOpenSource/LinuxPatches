@@ -1,0 +1,347 @@
+Subject: [PATCH 01/14] Adding support for TQMP1020
+
+---
+ arch/powerpc/boot/Makefile             |   2 +
+ arch/powerpc/boot/wrapper              |   2 +-
+ arch/powerpc/platforms/85xx/Kconfig    |  18 ++++
+ arch/powerpc/platforms/85xx/Makefile   |   2 +
+ arch/powerpc/platforms/85xx/tqmp1020.c |  93 ++++++++++++++++++++
+ arch/powerpc/platforms/85xx/tqmp2020.c | 114 +++++++++++++++++++++++++
+ arch/powerpc/sysdev/fsl_pci.c          |   2 +-
+ net/packet/af_packet.c                 |   8 ++
+ 8 files changed, 239 insertions(+), 2 deletions(-)
+ mode change 100755 => 100644 arch/powerpc/boot/wrapper
+ create mode 100644 arch/powerpc/platforms/85xx/tqmp1020.c
+ create mode 100644 arch/powerpc/platforms/85xx/tqmp2020.c
+
+diff --git a/arch/powerpc/boot/Makefile b/arch/powerpc/boot/Makefile
+index 8c69bd07ada6..8ce6646f263c 100644
+--- a/arch/powerpc/boot/Makefile
++++ b/arch/powerpc/boot/Makefile
+@@ -340,6 +340,8 @@ image-$(CONFIG_TQM8541)			+= cuImage.tqm8541
+ image-$(CONFIG_TQM8548)			+= cuImage.tqm8548
+ image-$(CONFIG_TQM8555)			+= cuImage.tqm8555
+ image-$(CONFIG_TQM8560)			+= cuImage.tqm8560
++image-$(CONFIG_TQMP1020)		+= cuImage.tqmp1020
++image-$(CONFIG_TQMP2020)		+= cuImage.tqmp2020
+ image-$(CONFIG_SBC8548)			+= cuImage.sbc8548
+ image-$(CONFIG_KSI8560)			+= cuImage.ksi8560
+ 
+diff --git a/arch/powerpc/boot/wrapper b/arch/powerpc/boot/wrapper
+old mode 100755
+new mode 100644
+index ed6266367bc0..46a54145ba05
+--- a/arch/powerpc/boot/wrapper
++++ b/arch/powerpc/boot/wrapper
+@@ -295,7 +295,7 @@ cuboot*)
+     *-tqm8541|*-mpc8560*|*-tqm8560|*-tqm8555|*-ksi8560*)
+         platformo=$object/cuboot-85xx-cpm2.o
+         ;;
+-    *-mpc85*|*-tqm85*|*-sbc85*)
++    *-mpc85*|*-tqm85*|*tqmp1020|*tqmp2020|*-sbc85*)
+         platformo=$object/cuboot-85xx.o
+         ;;
+     *-amigaone)
+diff --git a/arch/powerpc/platforms/85xx/Kconfig b/arch/powerpc/platforms/85xx/Kconfig
+index fa3d29dcb57e..e9650cdb4535 100644
+--- a/arch/powerpc/platforms/85xx/Kconfig
++++ b/arch/powerpc/platforms/85xx/Kconfig
+@@ -208,6 +208,24 @@ config TQM8560
+ 	select TQM85xx
+ 	select CPM2
+ 
++config TQMP1020
++	bool "TQ Components TQMP1020"
++	select PPC_I8259
++	select DEFAULT_UIMAGE
++	select FSL_ULI1575 if PCI
++	select SWIOTLB
++	help
++	  This option enables support for the TQ Components TQMP1020 board
++
++config TQMP2020
++	bool "TQ Components TQMP2020"
++	select PPC_I8259
++	select DEFAULT_UIMAGE
++	select FSL_ULI1575 if PCI
++	select SWIOTLB
++	help
++	  This option enables support for the TQ Components TQMP2020 board
++
+ config SBC8548
+ 	bool "Wind River SBC8548"
+ 	select DEFAULT_UIMAGE
+diff --git a/arch/powerpc/platforms/85xx/Makefile b/arch/powerpc/platforms/85xx/Makefile
+index d1dd0dca5ebf..9d77118bef8c 100644
+--- a/arch/powerpc/platforms/85xx/Makefile
++++ b/arch/powerpc/platforms/85xx/Makefile
+@@ -26,6 +26,8 @@ obj-$(CONFIG_CORENET_GENERIC)   += corenet_generic.o
+ obj-$(CONFIG_FB_FSL_DIU)	+= t1042rdb_diu.o
+ obj-$(CONFIG_STX_GP3)	  += stx_gp3.o
+ obj-$(CONFIG_TQM85xx)	  += tqm85xx.o
++obj-$(CONFIG_TQMP1020)	  += tqmp1020.o
++obj-$(CONFIG_TQMP2020)	  += tqmp2020.o
+ obj-$(CONFIG_SBC8548)     += sbc8548.o
+ obj-$(CONFIG_PPA8548)     += ppa8548.o
+ obj-$(CONFIG_SOCRATES)    += socrates.o socrates_fpga_pic.o
+diff --git a/arch/powerpc/platforms/85xx/tqmp1020.c b/arch/powerpc/platforms/85xx/tqmp1020.c
+new file mode 100644
+index 000000000000..cb24c573d141
+--- /dev/null
++++ b/arch/powerpc/platforms/85xx/tqmp1020.c
+@@ -0,0 +1,93 @@
++/*
++ * TQMP1020 Board Setup
++ *
++ * Copyright 2012 TQ Components GmbH
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++#include <linux/stddef.h>
++#include <linux/kernel.h>
++#include <linux/pci.h>
++#include <linux/kdev_t.h>
++#include <linux/delay.h>
++#include <linux/seq_file.h>
++#include <linux/interrupt.h>
++#include <linux/of_platform.h>
++
++#include <asm/time.h>
++#include <asm/machdep.h>
++#include <asm/pci-bridge.h>
++#include <mm/mmu_decl.h>
++#include <asm/prom.h>
++#include <asm/udbg.h>
++#include <asm/mpic.h>
++#include "smp.h"
++
++#include <sysdev/fsl_soc.h>
++#include <sysdev/fsl_pci.h>
++
++#include "mpc85xx.h"
++
++#undef DEBUG
++
++#ifdef DEBUG
++#define DBG(fmt, args...) printk(KERN_ERR "%s: " fmt, __func__, ## args)
++#else
++#define DBG(fmt, args...)
++#endif
++
++/*
++ * Setup the architecture
++ */
++static void __init tqmp1020_setup_arch(void)
++{
++	if (ppc_md.progress)
++		ppc_md.progress("tqmp1020_setup_arch()", 0);
++
++	mpc85xx_smp_init();
++	
++	fsl_pci_assign_primary();
++
++	printk(KERN_INFO "TQMP1020 from TQ Components GmbH\n");
++}
++
++machine_arch_initcall(tqmp1020, mpc85xx_common_publish_devices);
++
++void __init tqmp1020_pic_init(void)
++{
++	struct mpic *mpic;
++	unsigned int flags = MPIC_BIG_ENDIAN | MPIC_SINGLE_DEST_CPU;
++
++	mpic = mpic_alloc(NULL, 0, flags, 0, 256, " OpenPIC  ");
++	BUG_ON(mpic == NULL);
++	mpic_init(mpic);
++}
++
++/*
++ * Called very early, device-tree isn't unflattened
++ */
++static int __init tqmp1020_probe(void)
++{
++	unsigned long root = of_get_flat_dt_root();
++
++	if (of_flat_dt_is_compatible(root, "tqc,TQMP1020"))
++		return 1;
++	return 0;
++}
++
++define_machine(tqmp1020) {
++	.name			= "TQMP1020",
++	.probe			= tqmp1020_probe,
++	.setup_arch		= tqmp1020_setup_arch,
++	.init_IRQ		= tqmp1020_pic_init,
++#ifdef CONFIG_PCI
++	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
++#endif
++	.get_irq		= mpic_get_irq,
++	.calibrate_decr		= generic_calibrate_decr,
++	.progress		= udbg_progress,
++};
+diff --git a/arch/powerpc/platforms/85xx/tqmp2020.c b/arch/powerpc/platforms/85xx/tqmp2020.c
+new file mode 100644
+index 000000000000..70b7ea42f2b5
+--- /dev/null
++++ b/arch/powerpc/platforms/85xx/tqmp2020.c
+@@ -0,0 +1,114 @@
++/*
++ * TQMP2020 Board Setup
++ *
++ * Copyright 2011 TQ Components GmbH
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++#include <linux/stddef.h>
++#include <linux/kernel.h>
++#include <linux/pci.h>
++#include <linux/kdev_t.h>
++#include <linux/delay.h>
++#include <linux/seq_file.h>
++#include <linux/interrupt.h>
++#include <linux/of_platform.h>
++
++//#include <asm/system.h>
++#include <asm/time.h>
++#include <asm/machdep.h>
++#include <asm/pci-bridge.h>
++#include <mm/mmu_decl.h>
++#include <asm/prom.h>
++#include <asm/udbg.h>
++#include <asm/mpic.h>
++
++#include <sysdev/fsl_soc.h>
++#include <sysdev/fsl_pci.h>
++
++#include "mpc85xx.h"
++
++#undef DEBUG
++
++#ifdef DEBUG
++#define DBG(fmt, args...) printk(KERN_ERR "%s: " fmt, __func__, ## args)
++#else
++#define DBG(fmt, args...)
++#endif
++
++
++void __init tqmp2020_pic_init(void)
++{
++	struct mpic *mpic;
++	unsigned int flags = MPIC_BIG_ENDIAN | MPIC_SINGLE_DEST_CPU;
++
++	mpic = mpic_alloc(NULL, 0, flags, 0, 256, " OpenPIC  ");
++	BUG_ON(mpic == NULL);
++	mpic_init(mpic);
++}
++
++/*
++ * Setup the architecture
++ */
++#ifdef CONFIG_SMP
++extern void __init mpc85xx_smp_init(void);
++#endif
++static void __init tqmp2020_setup_arch(void)
++{
++	if (ppc_md.progress)
++		ppc_md.progress("tqmp2020_setup_arch()", 0);
++
++#ifdef CONFIG_SMP
++	mpc85xx_smp_init();
++#endif
++
++	fsl_pci_assign_primary();
++
++	printk(KERN_INFO "TQMP2020 from TQ Components GmbH\n");
++}
++
++#if 0
++static struct of_device_id __initdata tqmp2020_ids[] = {
++	{ .type = "soc", },
++	{ .compatible = "soc", },
++	{ .compatible = "simple-bus", },
++	{ .compatible = "gianfar", },
++	{},
++};
++
++static int __init tqmp2020_publish_devices(void)
++{
++	return of_platform_bus_probe(NULL, tqmp2020_ids, NULL);
++}
++machine_device_initcall(tqmp2020, tqmp2020_publish_devices);
++#endif
++machine_arch_initcall(tqmp2020, mpc85xx_common_publish_devices);
++
++/*
++ * Called very early, device-tree isn't unflattened
++ */
++static int __init tqmp2020_probe(void)
++{
++	unsigned long root = of_get_flat_dt_root();
++
++	if (of_flat_dt_is_compatible(root, "tqc,TQMP2020"))
++		return 1;
++	return 0;
++}
++
++define_machine(tqmp2020) {
++	.name			= "TQMP2020",
++	.probe			= tqmp2020_probe,
++	.setup_arch		= tqmp2020_setup_arch,
++	.init_IRQ		= tqmp2020_pic_init,
++#ifdef CONFIG_PCI
++	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
++#endif
++	.get_irq		= mpic_get_irq,
++	.calibrate_decr		= generic_calibrate_decr,
++	.progress		= udbg_progress,
++};
+diff --git a/arch/powerpc/sysdev/fsl_pci.c b/arch/powerpc/sysdev/fsl_pci.c
+index ff0e2b156cb5..7f6f50fd9ef4 100644
+--- a/arch/powerpc/sysdev/fsl_pci.c
++++ b/arch/powerpc/sysdev/fsl_pci.c
+@@ -455,7 +455,7 @@ static void setup_pci_atmu(struct pci_controller *hose)
+ 	}
+ }
+ 
+-static void __init setup_pci_cmd(struct pci_controller *hose)
++static void setup_pci_cmd(struct pci_controller *hose)
+ {
+ 	u16 cmd;
+ 	int cap_x;
+diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
+index fbc2d4dfddf0..102673166068 100644
+--- a/net/packet/af_packet.c
++++ b/net/packet/af_packet.c
+@@ -2783,6 +2783,12 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+ 		packet_inc_pending(&po->tx_ring);
+ 
+ 		status = TP_STATUS_SEND_REQUEST;
++
++		if (dev->name[0] == 't') {
++			// WORK specific: for tun/tap interfaces, put af_packet
++			// mmap TX packets into routing queue first
++			netif_rx_ni(skb);
++		} else {
+ 		err = po->xmit(skb);
+ 		if (unlikely(err > 0)) {
+ 			err = net_xmit_errno(err);
+@@ -2798,6 +2804,8 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
+ 			 */
+ 			err = 0;
+ 		}
++		}
++
+ 		packet_increment_head(&po->tx_ring);
+ 		len_sum += tp_len;
+ 	} while (likely((ph != NULL) ||
+-- 
+2.25.1
+

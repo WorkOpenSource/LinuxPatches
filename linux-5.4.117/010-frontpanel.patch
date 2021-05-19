@@ -1,0 +1,1754 @@
+Subject: [PATCH 05/14] Adding support for the frontpanel
+
+The frontpanel has a display, 6 LEDs and 6 buttons
+---
+ arch/arm/boot/dts/work92105.350.00B.dtsi      | 211 +++++
+ arch/arm/boot/dts/work92105.352.00C.dtsi      |  29 +
+ .../boot/dts/work/sat_92105.350.00C.dtsi      | 200 ++++
+ drivers/gpio/gpio-max7301.c                   |  40 +-
+ drivers/gpio/gpio-max730x.c                   |  22 +
+ drivers/gpio/gpio-pca953x.c                   |  25 +-
+ drivers/leds/leds-gpio.c                      |   7 +-
+ drivers/misc/Kconfig                          |   1 +
+ drivers/misc/Makefile                         |   1 +
+ drivers/misc/work/Kconfig                     |  45 +
+ drivers/misc/work/Makefile                    |   5 +
+ drivers/misc/work/max6957.h                   |  56 ++
+ drivers/misc/work/work-disp.c                 | 877 ++++++++++++++++++
+ include/linux/spi/max7301.h                   |   7 +
+ 14 files changed, 1518 insertions(+), 8 deletions(-)
+ create mode 100644 arch/arm/boot/dts/work92105.350.00B.dtsi
+ create mode 100644 arch/arm/boot/dts/work92105.352.00C.dtsi
+ create mode 100644 arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi
+ create mode 100644 drivers/misc/work/Kconfig
+ create mode 100644 drivers/misc/work/Makefile
+ create mode 100644 drivers/misc/work/max6957.h
+ create mode 100644 drivers/misc/work/work-disp.c
+
+diff --git a/arch/arm/boot/dts/work92105.350.00B.dtsi b/arch/arm/boot/dts/work92105.350.00B.dtsi
+new file mode 100644
+index 000000000000..c44404cb39ad
+--- /dev/null
++++ b/arch/arm/boot/dts/work92105.350.00B.dtsi
+@@ -0,0 +1,211 @@
++/*
++ * WORK 92105.350.00B - Frontpanel board (Rev B)
++ *
++ * 6 LEDs, LCD Display (2x40, contrast), 6 buttons (no hw-clock)
++ *
++ * Copyright 2012 Roland Stigge <stigge@antcom.de>
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++/ {
++	ahb {
++		apb {
++			i2c1: i2c@400A0000 {
++				/* Frontpanel LEDs */
++				gpio1: io@21 {
++					compatible = "nxp,pca9554";
++					reg = <0x21>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Frontpanel LEDs */
++				gpio2: io@22 {
++					compatible = "nxp,pca9554";
++					reg = <0x22>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Frontpanel Keys */
++				gpio3: io@24 {
++					compatible = "nxp,pca9554";
++					reg = <0x24>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Display Contrast */
++				dac@2c {
++					compatible = "maxim,max518";
++					reg = <0x2c>;
++				};
++
++				temp@49 {
++					compatible = "dallas,ds620";
++					reg = <0x49>;
++				};
++			};
++
++			ssp0: ssp@20084000 {
++				#address-cells = <1>;
++				#size-cells = <0>;
++				num-cs = <2>;
++				cs-gpios = <&gpio 5 15 0>,
++				           <&gpio 3 5 0>;
++				/* GPIO_5 is CD at the same time, but unused for now */
++
++				gpiomax: gpio@0 {
++					pl022,interface = <0>;
++					pl022,com-mode = <0>;
++					pl022,rx-level-trig = <1>;
++					pl022,tx-level-trig = <1>;
++					pl022,ctrl-len = <7>;
++					pl022,wait-state = <0>;
++					pl022,duplex = <0>;
++
++					compatible = "max7301";
++					spi-max-frequency = <4000000>;
++					reg = <0>;
++					
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++
++				/* Optinal SD-Card */
++				mmc: mmc-slot@0 {
++					pl022,interface = <0>;
++					pl022,com-mode = <0>;
++					pl022,rx-level-trig = <1>;
++					pl022,tx-level-trig = <1>;
++					pl022,ctrl-len = <7>;
++					pl022,wait-state = <0>;
++					pl022,duplex = <1>;
++
++					compatible = "mmc-spi-slot";
++					reg = <1>;
++					voltage-ranges = <3300 3300>;
++					spi-max-frequency = <5000000>;
++				};
++			};
++
++			ssp1: ssp@2008c000 {
++				#address-cells = <1>;
++				#size-cells = <0>;
++				num-cs = <1>;
++				cs-gpios = <&gpio 3 4 0>;
++/* activate for additional CS on external spi  
++				num-cs = <3>;
++				cs-gpios = <&gpio 3 4 0>,
++				           <&gpio 5 18 0>,
++				           <&gpio 5 13 0>;
++*/
++				spidev@0 {
++					compatible = "spi,spidev";
++					spi-max-frequency = <4000000>;
++					reg = <0>;
++				};
++			};
++		};
++	};
++
++	display {
++		compatible = "work,disp";
++	};
++
++	keys {
++		compatible = "work,keys";
++	};
++	
++	leds {
++		compatible = "gpio-leds";
++
++		led-front-6-rt {
++			gpios = <&gpio1 2 0>;
++			default-state = "off";
++		};
++
++		led-front-6-gn {
++			gpios = <&gpio1 3 0>;
++			default-state = "on";
++		};
++
++		led-front-5-rt {
++			gpios = <&gpio1 4 0>;
++			default-state = "off";
++		};
++
++		led-front-5-gn {
++			gpios = <&gpio1 5 0>;
++			default-state = "on";
++		};
++
++		led-front-4-rt {
++			gpios = <&gpio1 6 0>;
++			default-state = "off";
++		};
++
++		led-front-4-gn {
++			gpios = <&gpio1 7 0>;
++			default-state = "on";
++		};
++
++		led-front-3-rt {
++			gpios = <&gpio2 2 0>;
++			default-state = "off";
++		};
++
++		led-front-3-gn {
++			gpios = <&gpio2 3 0>;
++			default-state = "on";
++		};
++
++		led-front-2-rt {
++			gpios = <&gpio2 4 0>;
++			default-state = "off";
++		};
++
++		led-front-2-gn {
++			gpios = <&gpio2 5 0>;
++			default-state = "on";
++		};
++
++		led-front-1-rt {
++			gpios = <&gpio2 6 0>;
++			default-state = "off";
++		};
++
++		led-front-1-gn {
++			gpios = <&gpio2 7 0>;
++			default-state = "on";
++		};
++
++		led-back-gn0 {
++			gpios = <&gpiomax 0 1>;
++			/* blinking done by mainctl */
++			/* linux,default-trigger = "heartbeat"; */
++			default-state = "off";
++		};
++
++		led-back-gn1 {
++			gpios = <&gpiomax 1 1>;
++			default-state = "off";
++		};
++
++		led-back-ge {
++			gpios = <&gpiomax 2 1>;
++			default-state = "off";
++		};
++
++		led-back-rt {
++			gpios = <&gpiomax 3 1>;
++			default-state = "off";
++		};
++	};
++};
+diff --git a/arch/arm/boot/dts/work92105.352.00C.dtsi b/arch/arm/boot/dts/work92105.352.00C.dtsi
+new file mode 100644
+index 000000000000..bdad8b1ae834
+--- /dev/null
++++ b/arch/arm/boot/dts/work92105.352.00C.dtsi
+@@ -0,0 +1,29 @@
++/*
++ * WORK 92105.352.00C - Frontpanel board (Rev C)
++ *
++ * 6 LEDs, BCD switch
++ *
++ * Copyright 2014 Roland Stigge <stigge@antcom.de>
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++/ {
++	ahb {
++		apb {
++			i2c1: i2c@400A0000 {
++				gpio4: io@25 {
++					compatible = "nxp,pca9554";
++					reg = <0x25>;
++					gpio-controller;
++					#gpio-cells = <2>;
++				};
++			};
++		};
++	};
++};
+diff --git a/arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi b/arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi
+new file mode 100644
+index 000000000000..0f8f3c151a19
+--- /dev/null
++++ b/arch/powerpc/boot/dts/work/sat_92105.350.00C.dtsi
+@@ -0,0 +1,200 @@
++/*
++ * WORK 92105.350.00C - Frontpanel board (Rev C)
++ *
++ * 6 LEDs, LCD Display (2x40, contrast), 6 buttons, hw-clock, beeper
++ *
++ * Copyright 2017 WORK Microwave GmbH
++ *
++ */
++
++&board_soc {
++
++	i2c@3100 {
++
++		/* Frontpanel LEDs */
++		gpio21: gpio@21 {
++			compatible = "nxp,pca9554";
++			reg = <0x21>;
++			gpio-controller;
++			#gpio-cells = <2>;
++		};
++
++		/* Frontpanel LEDs */
++		gpio22: gpio@22 {
++			compatible = "nxp,pca9554";
++			reg = <0x22>;
++			gpio-controller;
++			#gpio-cells = <2>;
++		};
++
++		/* Frontpanel Keys */
++		gpio24: gpio@24 {
++			compatible = "nxp,pca9554";
++			reg = <0x24>;
++			gpio-controller;
++			#gpio-cells = <2>;
++		};
++
++		/* Display Contrast */
++		contrast_dac: dac@2c {
++			compatible = "maxim,max518";
++			reg = <0x2c>;
++		};
++
++		/* Frontpanel Temperature */
++		temp-sensor@49 {
++			compatible = "dallas,ds620";
++			reg = <0x49>;
++		};
++
++		/* Realtime Clock */
++		rtc@68 {
++			compatible = "dallas,ds1374";
++			reg = <0x68>;
++		};
++	};
++
++	display {
++		compatible = "work,disp";
++	};
++
++	frontpanel_keys {
++		compatible = "gpio-keys";
++		/*compatible = "gpio-keys-polled";
++		poll-interval = <100>;*/
++		#address-cells = <1>;
++		#size-cells = <0>;
++		autorepeat;
++		downkey {
++			gpios = <&gpio24 0 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <108>;		/* KEY_DOWN */
++		};
++		leftkey {
++			gpios = <&gpio24 1 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <105>;		/* KEY_LEFT */
++		};
++		rightkey {
++			gpios = <&gpio24 2 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <106>;		/* KEY_RIGHT */
++		};
++		upkey {
++			gpios = <&gpio24 3 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <103>;		/* KEY_UP */
++		};
++		enterkey {
++			gpios = <&gpio24 4 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <28>;		/* KEY_ENTER */
++		};
++		backspacekey {  /* labeled 'cancel' */
++			gpios = <&gpio24 5 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <14>;		/* KEY_BACKSPACE */
++		};
++		inskey {  /* labeled 'rx-on' */
++			gpios = <&gpio24 6 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <110>;		/* KEY_INSERT */
++		};
++		delkey {  /* labeled 'rx-off' */
++			gpios = <&gpio24 7 1>;
++			interrupts = <8 0x2 0 0>;
++			linux,code = <111>;		/* KEY_DELETE */
++		};
++	};
++
++	frontpanel_beeper {
++		compatible = "gpio-beeper";
++		gpios = <&gpiomax 18 0>;
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led-front-6-rt {
++			gpios = <&gpio21 2 0>;
++			default-state = "on";
++		};
++
++		led-front-6-gn {
++			gpios = <&gpio21 3 0>;
++			default-state = "off";
++		};
++
++		led-front-5-rt {
++			gpios = <&gpio21 4 0>;
++			default-state = "on";
++		};
++
++		led-front-5-gn {
++			gpios = <&gpio21 5 0>;
++			default-state = "off";
++		};
++
++		led-front-4-rt {
++			gpios = <&gpio21 6 0>;
++			default-state = "on";
++		};
++
++		led-front-4-gn {
++			gpios = <&gpio21 7 0>;
++			default-state = "off";
++		};
++
++		led-front-3-rt {
++			gpios = <&gpio22 2 0>;
++			default-state = "on";
++		};
++
++		led-front-3-gn {
++			gpios = <&gpio22 3 0>;
++			default-state = "off";
++		};
++
++		led-front-2-rt {
++			gpios = <&gpio22 4 0>;
++			default-state = "on";
++		};
++
++		led-front-2-gn {
++			gpios = <&gpio22 5 0>;
++			default-state = "off";
++		};
++
++		led-front-1-rt {
++			gpios = <&gpio22 6 0>;
++			default-state = "on";
++		};
++
++		led-front-1-gn {
++			gpios = <&gpio22 7 0>;
++			default-state = "off";
++		};
++
++		led-back-gn0 {
++			gpios = <&gpiomax 0 1>;
++			/* blinking done by mainctl */
++			/* linux,default-trigger = "heartbeat"; */
++			default-state = "off";
++		};
++
++		led-back-gn1 {
++			gpios = <&gpiomax 1 1>;
++			default-state = "off";
++		};
++
++		led-back-ge {
++			gpios = <&gpiomax 2 1>;
++			default-state = "off";
++		};
++
++		led-back-rt {
++			gpios = <&gpiomax 3 1>;
++			default-state = "off";
++		};
++	};
++};
+diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
+index b097afc86cdd..30d9d20104a5 100644
+--- a/drivers/gpio/gpio-max7301.c
++++ b/drivers/gpio/gpio-max7301.c
+@@ -15,25 +15,46 @@
+ #include <linux/spi/spi.h>
+ #include <linux/spi/max7301.h>
+ 
++//
++// This patch depends on 009-reverse-fix-driver-for-use-with-CONFIG_VMAP_STACK.patch.
++// So first patch the patch 009, then use 'git add drivers/gpio/gpio-max7301.c'. Then
++// patch this patch and get the modifications with 'git diff'.
++//
++
++//
++// WORK modification: RST: directly export spi read/write functions
++//                         to enable setting multiple GPIOs at once
++//                         and export actual spi device
++//
++
++static struct device *the_dev = NULL; // singleton
++
++struct device *max7301_get_dev(void)
++{
++	return the_dev;
++}
++EXPORT_SYMBOL_GPL(max7301_get_dev);
++
+ /* A write to the MAX7301 means one message with one transfer */
+-static int max7301_spi_write(struct device *dev, unsigned int reg,
++int max7301_spi_write(struct device *dev, unsigned int reg,
+ 				unsigned int val)
+ {
+ 	struct spi_device *spi = to_spi_device(dev);
+-	u16 word = ((reg & 0x7F) << 8) | (val & 0xFF);
++	u16 word = cpu_to_be16(((reg & 0x7F) << 8) | (val & 0xFF));
+ 
+ 	return spi_write(spi, (const u8 *)&word, sizeof(word));
+ }
++EXPORT_SYMBOL_GPL(max7301_spi_write);
+ 
+ /* A read from the MAX7301 means two transfers; here, one message each */
+ 
+-static int max7301_spi_read(struct device *dev, unsigned int reg)
++int max7301_spi_read(struct device *dev, unsigned int reg)
+ {
+ 	int ret;
+ 	u16 word;
+ 	struct spi_device *spi = to_spi_device(dev);
+ 
+-	word = 0x8000 | (reg << 8);
++	word = cpu_to_be16(0x8000 | (reg << 8));
+ 	ret = spi_write(spi, (const u8 *)&word, sizeof(word));
+ 	if (ret)
+ 		return ret;
+@@ -44,8 +65,9 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	ret = spi_read(spi, (u8 *)&word, sizeof(word));
+ 	if (ret)
+ 		return ret;
+-	return word & 0xff;
++	return be16_to_cpu(word) & 0xff;
+ }
++EXPORT_SYMBOL_GPL(max7301_spi_read);
+ 
+ static int max7301_probe(struct spi_device *spi)
+ {
+@@ -53,7 +75,7 @@ static int max7301_probe(struct spi_device *spi)
+ 	int ret;
+ 
+ 	/* bits_per_word cannot be configured in platform data */
+-	spi->bits_per_word = 16;
++	spi->bits_per_word = 8;
+ 	ret = spi_setup(spi);
+ 	if (ret < 0)
+ 		return ret;
+@@ -67,6 +89,12 @@ static int max7301_probe(struct spi_device *spi)
+ 	ts->dev = &spi->dev;
+ 
+ 	ret = __max730x_probe(ts);
++	if (ret) {
++		printk(KERN_WARNING "MAX7301 not found\n");
++	} else {
++		the_dev = &spi->dev;
++		printk(KERN_INFO "MAX7301 driver loaded\n");
++	}
+ 	return ret;
+ }
+ 
+diff --git a/drivers/gpio/gpio-max730x.c b/drivers/gpio/gpio-max730x.c
+index 1e1935c51096..436d43e3f822 100644
+--- a/drivers/gpio/gpio-max730x.c
++++ b/drivers/gpio/gpio-max730x.c
+@@ -214,6 +214,12 @@ int __max730x_probe(struct max7301 *ts)
+ 		}
+ 	}
+ 
++	if (pdata && pdata->setup) {
++		ret = pdata->setup(ts->chip.base,
++				ts->chip.ngpio, pdata->context);
++		if (ret < 0)
++			dev_warn(dev, "setup failed, %d\n", ret);
++	}
+ 	return ret;
+ 
+ exit_destroy:
+@@ -224,11 +230,27 @@ EXPORT_SYMBOL_GPL(__max730x_probe);
+ 
+ int __max730x_remove(struct device *dev)
+ {
++	struct max7301_platform_data *pdata;
+ 	struct max7301 *ts = dev_get_drvdata(dev);
+ 
+ 	if (ts == NULL)
+ 		return -ENODEV;
+ 
++	pdata = dev->platform_data;
++
++	if (pdata && pdata->teardown) {
++		int ret;
++		
++		ret = pdata->teardown(ts->chip.base,
++				ts->chip.ngpio, pdata->context);
++		if (ret < 0) {
++			dev_err(dev, "teardown failed, %d\n", ret);
++			return ret;
++		}
++	}
++
++	dev_set_drvdata(dev, NULL);
++
+ 	/* Power down the chip and disable IRQ output */
+ 	ts->write(dev, 0x04, 0x00);
+ 	gpiochip_remove(&ts->chip);
+diff --git a/drivers/gpio/gpio-pca953x.c b/drivers/gpio/gpio-pca953x.c
+index 9a24dce3c262..eaefa9b66589 100644
+--- a/drivers/gpio/gpio-pca953x.c
++++ b/drivers/gpio/gpio-pca953x.c
+@@ -9,6 +9,7 @@
+  */
+ 
+ #include <linux/acpi.h>
++#include <linux/gpio.h>
+ #include <linux/bits.h>
+ #include <linux/gpio/driver.h>
+ #include <linux/gpio/consumer.h>
+@@ -975,6 +976,11 @@ static int device_pca957x_init(struct pca953x_chip *chip, u32 invert)
+ 
+ static const struct of_device_id pca953x_dt_ids[];
+ 
++struct i2c_client *work_client24;
++EXPORT_SYMBOL_GPL(work_client24);
++struct i2c_client *work_client25;
++EXPORT_SYMBOL_GPL(work_client25);
++
+ static int pca953x_probe(struct i2c_client *client,
+ 				   const struct i2c_device_id *i2c_id)
+ {
+@@ -983,6 +989,7 @@ static int pca953x_probe(struct i2c_client *client,
+ 	int irq_base = 0;
+ 	int ret;
+ 	u32 invert = 0;
++	int i;
+ 	struct regulator *reg;
+ 	const struct regmap_config *regmap_config;
+ 
+@@ -1046,6 +1053,20 @@ static int pca953x_probe(struct i2c_client *client,
+ 		chip->driver_data = (uintptr_t)match;
+ 	}
+ 
++	// WORK92105: LEDs Initially RED
++	if (client->addr == 0x21 || client->addr == 0x22)
++		for (i = 0; i < 8; i++) {
++			gpio_request(chip->gpio_chip.base + i, "LEDs preset");
++				gpio_direction_output(chip->gpio_chip.base + i, (i & 1) ^ 1);
++			gpio_free(chip->gpio_chip.base + i);
++		}
++
++	// WORK92105: save chip for efficient access in work-keys driver
++	if (client->addr == 0x24)
++		work_client24 = client;
++	if (client->addr == 0x25)
++		work_client25 = client;
++
+ 	i2c_set_clientdata(client, chip);
+ 
+ 	pca953x_setup_gpio(chip, chip->driver_data & PCA_GPIO_MASK);
+@@ -1101,8 +1122,10 @@ static int pca953x_probe(struct i2c_client *client,
+ 		goto err_exit;
+ 
+ 	ret = devm_gpiochip_add_data(&client->dev, &chip->gpio_chip, chip);
++	// WORK92105: Ignore missing device: Dynamically test from userspace
++	// at runtime
+ 	if (ret)
+-		goto err_exit;
++		dev_warn(&client->dev, "Failed to initialized GPIO device!\n");
+ 
+ 	ret = pca953x_irq_setup(chip, irq_base);
+ 	if (ret)
+diff --git a/drivers/leds/leds-gpio.c b/drivers/leds/leds-gpio.c
+index 2bf74595610f..e8226147ca65 100644
+--- a/drivers/leds/leds-gpio.c
++++ b/drivers/leds/leds-gpio.c
+@@ -188,8 +188,13 @@ static struct gpio_leds_priv *gpio_leds_create(struct platform_device *pdev)
+ 
+ 		ret = create_gpio_led(&led, led_dat, dev, child, NULL);
+ 		if (ret < 0) {
++			// WORK92105: Ignore missing GPIO LEDs for keeping the
++			// others and dynamically detecting in userland at
++			// runtime
++			dev_warn(&pdev->dev,
++				 "WARNING: GPIO LED %s not available.\n",
++				 led.name);
+ 			fwnode_handle_put(child);
+-			return ERR_PTR(ret);
+ 		}
+ 		/* Set gpiod label to match the corresponding LED name. */
+ 		gpiod_set_consumer_name(led_dat->gpiod,
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index ca2083365a1d..b84210cae715 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -469,6 +469,7 @@ config PVPANIC
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"
+ source "drivers/misc/cb710/Kconfig"
++source "drivers/misc/work/Kconfig"
+ source "drivers/misc/ti-st/Kconfig"
+ source "drivers/misc/lis3lv02d/Kconfig"
+ source "drivers/misc/altera-stapl/Kconfig"
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index ba1e18c732ec..1bdd4e6ac21d 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -36,6 +36,7 @@ obj-$(CONFIG_C2PORT)		+= c2port/
+ obj-$(CONFIG_HMC6352)		+= hmc6352.o
+ obj-y				+= eeprom/
+ obj-y				+= cb710/
++obj-y				+= work/
+ obj-$(CONFIG_VMWARE_BALLOON)	+= vmw_balloon.o
+ obj-$(CONFIG_PCH_PHUB)		+= pch_phub.o
+ obj-y				+= ti-st/
+diff --git a/drivers/misc/work/Kconfig b/drivers/misc/work/Kconfig
+new file mode 100644
+index 000000000000..67b11a4eb588
+--- /dev/null
++++ b/drivers/misc/work/Kconfig
+@@ -0,0 +1,45 @@
++#
++# WORK Microwave specially arranged devices
++#
++
++menuconfig WORK_DRIVERS
++	bool "Additional device drivers for WORK92105 board"
++	---help---
++	  Say Y here to get to see options for device drivers for miscellaneous
++	  WORK Microwave modules from various categories. This option alone
++	  does not add any kernel code.
++
++	  If you say N, all options in this submenu will be skipped and disabled.
++
++if WORK_DRIVERS
++
++config WORK_DISP
++	tristate "WORK frontpanel display driver"
++	depends on GPIO_PCA953X && MAX517
++	default y
++	help
++	  This option enables the frontpanel display driver.
++
++if WORK_DISP
++
++choice
++	prompt "Display connection"
++	default WORK_DISP_SPI
++
++	config WORK_DISP_SPI
++		bool "SPI"
++		help
++		  WORK display is connected via SPI directly.
++
++	config WORK_DISP_SPI_OVER_I2C
++		bool "SPI over I2C"
++		help
++		  We communicate with an Xmega processor via I2C, which translates
++		  the messages into SPI messages which are sent to the WORK display
++		  directly.
++
++endchoice
++
++endif # WORK_DISP
++
++endif # WORK DRIVERS
+diff --git a/drivers/misc/work/Makefile b/drivers/misc/work/Makefile
+new file mode 100644
+index 000000000000..5dd2caf00d55
+--- /dev/null
++++ b/drivers/misc/work/Makefile
+@@ -0,0 +1,5 @@
++#
++# Makefile for WORK Microwave specially arranged
++#
++
++obj-$(CONFIG_WORK_DISP)		+= work-disp.o
+diff --git a/drivers/misc/work/max6957.h b/drivers/misc/work/max6957.h
+new file mode 100644
+index 000000000000..8730058cad17
+--- /dev/null
++++ b/drivers/misc/work/max6957.h
+@@ -0,0 +1,56 @@
++/*
++ * max6957.h -- interface for Maxim MAX6957 SPI PortExpander
++ *           -- variants:
++ *              - 28 Ports : MAX6957AAX, MAX6957ATL
++ *              - 20 Ports : MAX6957AAI, MAX6957ANI 
++ *
++ * Copyright (C) 2010 WORK Microwave GmbH 
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#ifndef MAX6957_H
++#define MAX6957_H
++
++#include <linux/spi/spi.h>
++
++/* Register definitions (from MAX6957.pdf) */
++#define MAX6957_NOP		0x00
++#define MAX6957_GCONF		0x04	// global configuration register
++#define MAX6957_GCONFVAL_SLEEP	0x00	// (default) chip sleeps  
++#define MAX6957_GCONFVAL_OP	0x01	// chip in normal operation mode 
++#if 0
++#define MAX6957_GCONFVAL_OP	0x81	// chip in operation mode with trans.detection 
++#endif
++
++// port configuration registers
++#define MAX6957_PCONF_4T7	0x09	// only in 28-Port variant 
++#define MAX6957_PCONF_8T11	0x0A	// only in 28-Port variant
++#define MAX6957_PCONF_12T15	0x0B
++#define MAX6957_PCONF_16T19	0x0C
++#define MAX6957_PCONF_20T23	0x0D
++#define MAX6957_PCONF_24T27	0x0E
++#define MAX6957_PCONF_28T31	0x0F
++
++#define MAX6957_PCONFVAL_4OUT	0x55	// set 4 ports to GPO
++#define MAX6957_PCONFVAL_3HOUT  0x56	// set 3 ports (higher ones) to GPO, lowest to GPI
++#define MAX6957_PCONFVAL_4IN	0xAA	// (default) set 4 ports to GPI without pullup
++#define MAX6957_PCONFVAL_4INP	0xFF	// set 4 ports to GPI with pullup
++
++#define MAX6957_PACC_24T31	0x58
++#define MAX6957_PACC_16T23	0x50
++#define MAX6957_PACC_12T19	0x4C
++#define MAX6957_PACC_8T15	0x48	// only in 28-Port variant
++#define MAX6957_PACC_4T7	0x40	// only in 28-Port variant
++#define MAX6957_PACC_0		0x20
++#define MAX6957_PACC(x)		(MAX6957_PACC_0 + x)	// Port 4 to Port 11 only in 28 Port variant
++
++extern struct device *max7301_get_dev(void);
++extern int max7301_spi_write(struct device *dev, unsigned int reg,
++			     unsigned int val);
++extern int max7301_spi_read(struct device *dev, unsigned int reg);
++
++#endif // MAX6957_H
+diff --git a/drivers/misc/work/work-disp.c b/drivers/misc/work/work-disp.c
+new file mode 100644
+index 000000000000..56adbaa6408f
+--- /dev/null
++++ b/drivers/misc/work/work-disp.c
+@@ -0,0 +1,877 @@
++/*
++ * work-disp.c -- Display driver for WORK Frontpanel
++ *
++ * 2-line, 40 characters each
++ *
++ * Using MAX6957AAX (max6957.c) with 28 GPIOs
++ *
++ * Copyright (C) 2010 WORK Microwave GmbH 
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#if defined(CONFIG_WORK_DISP_SPI_OVER_I2C) && defined(CONFIG_WORK_DISP_SPI)
++#error "Cannot define CONFIG_WORK_DISP_SPI and CONFIG_WORK_DISP_SPI_OVER_I2C at the same time!"
++#endif
++#if ! defined(CONFIG_WORK_DISP_SPI_OVER_I2C) && ! defined(CONFIG_WORK_DISP_SPI)
++#error "Either CONFIG_WORK_DISP_SPI or CONFIG_WORK_DISP_SPI_OVER_I2C must be defined!"
++#endif
++
++#include <linux/module.h>
++#include <linux/miscdevice.h>   // struct miscdevice
++#include <linux/uaccess.h>      // copy_from_user
++
++#ifdef CONFIG_WORK_DISP_SPI_OVER_I2C
++#include <linux/i2c.h>
++#include <linux/random.h>
++#endif
++
++#ifdef CONFIG_WORK_DISP_SPI
++#include <linux/platform_device.h>
++#include <linux/spi/max7301.h>
++#endif
++
++#include "max6957.h"
++
++#define MODNAME "work-disp"
++
++
++
++
++
++
++
++
++
++/*
++ * Display Driver Implementation
++ *
++ * The driver itself is independent of the connection type (SPI directly or tunneled via I2C).
++ */
++
++#define DISP_SIZE 128 // 128 characters in total
++
++// definitions for display connection
++#define DISP_DATA         MAX6957_PACC_12T19
++#define DISP_EN           MAX6957_PACC(11)
++#define DISP_R_W          MAX6957_PACC(10)
++#define DISP_RS           MAX6957_PACC(9)
++
++#define INST_CLEAR        0x01
++#define INST_HOME         0x02
++#define INST_ENTRY_MODE   0x04
++#define INST_DISPLAY_ON   0x08
++#define INST_SHIFT        0x10
++#define INST_FUNCTION     0x20
++#define INST_CHAR_GEN     0x40
++#define INST_SETPOS       0x80
++
++#define WORK_DISP_FUNC_EIGHTBITS    (1 << 0)
++#define WORK_DISP_FUNC_TWOLINE      (1 << 1)
++#define WORK_DISP_TENDOTS           (1 << 2)
++
++#define WORK_DISP_FEAT_DISP_ON      (1 << 0)
++#define WORK_DISP_FEAT_CURSOR       (1 << 1)
++#define WORK_DISP_FEAT_BLINK        (1 << 2)
++
++#define WORK_DISP_ENTRY_INCREMENT   (1 << 0)
++#define WORK_DISP_ENTRY_SHIFT       (1 << 1)
++
++#define WORK_DISP_IOCTL_CLEAR               0x00
++#define WORK_DISP_IOCTL_HOME                0x01
++#define WORK_DISP_IOCTL_ENTRY_MODE          0x02
++#define WORK_DISP_IOCTL_DISPLAY_ON          0x03
++#define WORK_DISP_IOCTL_DISPLAY_FUNCTiON    0x04
++
++
++/** Reads and returns the given SPI register. Is implemented for SPI and SPI-over-I2c twice. */
++static u8 disp_spi_read(unsigned int reg);
++
++/** Writes the value to the given SPI register. Is implemented for SPI and SPI-over-I2c twice. */
++static int disp_spi_write(unsigned int reg, unsigned int value);
++
++/** low level write: set output pins (caller needs to set data direction!) */
++static int disp_write_data(u8 data) {
++	return disp_spi_write(DISP_DATA, data);
++}
++
++/** low level read: read input pins (caller needs to set data direction!) */
++static u8 disp_read_data(void) {
++	return disp_spi_read(DISP_DATA);
++}
++
++/** Display E is high active */
++static void disp_write_en(int val) {
++	static int en_value_old = -1;
++	if (val != en_value_old) {
++		disp_spi_write(DISP_EN, val);
++		en_value_old = val;
++	}
++}
++
++/** 0 = Write, 1 = Read */
++static void disp_write_rw(int val) {
++	static int rw_value_old = -1;
++	if (val != rw_value_old) {
++		disp_spi_write(DISP_R_W, val);
++		rw_value_old = val;
++	}
++}
++
++static void disp_write_rs(int val) {
++	static int rs_value_old = -1;
++	if (val != rs_value_old) {
++		disp_spi_write(DISP_RS, val);
++		rs_value_old = val;
++	}
++}
++
++#define DISP_IN  0
++#define DISP_OUT 1
++/** output: DISP_IN / DISP_OUT */
++static void disp_set_io(int output) {
++	static int  output_old = -1;
++	if (output != output_old) {
++		if (output) {
++			disp_spi_write(MAX6957_PCONF_16T19, MAX6957_PCONFVAL_4OUT);
++			disp_spi_write(MAX6957_PCONF_12T15, MAX6957_PCONFVAL_4OUT);
++		} else {
++			disp_spi_write(MAX6957_PCONF_16T19, MAX6957_PCONFVAL_4IN);
++			disp_spi_write(MAX6957_PCONF_12T15, MAX6957_PCONFVAL_4IN);
++		}
++		output_old = output;
++	}
++}
++
++static int disp_is_busy(void) {
++	int ir;
++
++	disp_write_rs(0);
++	disp_write_rw(1);
++	disp_set_io(DISP_IN);
++	disp_write_en(1);
++	ir = disp_read_data();
++	disp_write_en(0);
++
++	//printk(KERN_INFO "DEBUG: Busy/Address counter: 0x%02X (%d)\n", ir, ir);
++	return ir >= 0 && ir & 0x80;
++}
++
++static void disp_write_char(char c) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(1);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	disp_write_en(1);
++	disp_write_data(c);
++	disp_write_en(0);
++}
++
++static u8 disp_read_char(void) {
++	int c;
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++	
++	disp_write_rs(1);
++	disp_write_rw(1);
++	disp_set_io(DISP_IN);
++	disp_write_en(1);
++	c = disp_read_data();
++	disp_write_en(0);
++
++	if (c < 0) printk(KERN_ERR "read_char failed with %d\n", c);
++	return c;
++}
++
++static void disp_write_instruction(u8 i) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(0);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	disp_write_en(1);
++	disp_write_data(i);
++	disp_write_en(0);
++}
++
++#if 0 // TODO: use it (see above)
++static void disp_read(char* s, int n) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++	
++	disp_write_rs(1);
++	disp_write_rw(1);
++	disp_set_io(DISP_IN);
++	while (n) {
++		disp_write_en(1);
++		*s = disp_read_data();
++		disp_write_en(0);
++		s++;
++		n--;
++	}
++}
++#endif
++
++// TODO: Wait necessary between adjacent characters?
++static void disp_write(char* s) {
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(1);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	while (*s) {
++		disp_write_en(1);
++		disp_write_data(*s);
++		disp_write_en(0);
++		s++;
++	}
++}
++
++static void disp_write_mem(const char* s, int len) {
++	int i = 0;
++	while (disp_is_busy()) {} // TODO: busy wait -> non blocking
++
++	disp_write_rs(1);
++	disp_write_rw(0);
++	disp_set_io(DISP_OUT);
++	while (i < len) {
++		disp_write_en(1);
++		disp_write_data(s[i]);
++		disp_write_en(0);
++		i++;
++	}
++}
++
++// Clear display
++static void disp_instruction_clear(void) {
++	disp_write_instruction(INST_CLEAR);
++}
++
++static void disp_instruction_home(void) {
++	disp_write_instruction(INST_HOME);
++}
++
++static void disp_instruction_entry_mode(int increment, int shift) {
++	u8 options = 0;
++
++	if (increment) options |= (1 << 1);
++	if (shift)     options |= (1 << 0);
++
++	disp_write_instruction(INST_ENTRY_MODE | options);
++}
++
++static void disp_instruction_on(int on, int cursor, int blink) {
++	u8 options = 0;
++
++	if (on)     options |= (1 << 2);
++	if (cursor) options |= (1 << 1);
++	if (blink)  options |= (1 << 0);
++
++	disp_write_instruction(INST_DISPLAY_ON | options);
++}
++
++static void disp_instruction_function(int eightbits, int twoline, int tendots) {
++	u8 options = 0;
++
++	if (eightbits) options |= 0x10;
++	if (twoline)   options |= 0x08;
++	if (tendots)   options |= 0x04;
++
++	disp_write_instruction(INST_FUNCTION | options);
++}
++
++// line: 0..1
++// column: 0..39
++static void disp_instruction_setpos(int line, int column) {
++	disp_write_instruction(INST_SETPOS | (line * 0x40 + column));
++}
++
++static u8 char_gen_chars[] = {
++	// The following taken from old frontpanel, work_gcc_lib/display.c
++
++	// #8, empty rectangle
++	0x1F, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1F,
++	// #9, filled right arrow >
++	0x10, 0x18, 0x1C, 0x1E, 0x1C, 0x18, 0x10, 0x00,
++	// #10, filled left arrow <
++	0x01, 0x03, 0x07, 0x0F, 0x07, 0x03, 0x01, 0x00,
++	// #11, up and down arrow
++	0x04, 0x0E, 0x1F, 0x00, 0x00, 0x1F, 0x0E, 0x04,
++	// #12, plus/minus
++	0x04, 0x04, 0x1F, 0x04, 0x04, 0x00, 0x1F, 0x00,
++	// #13, fat exclamation mark
++	0x06, 0x06, 0x06, 0x06, 0x00, 0x06, 0x06, 0x00,
++	// #14, empty square
++	0x00, 0x1F, 0x11, 0x11, 0x11, 0x1F, 0x00, 0x00,
++	// #15, struck out square
++	0x00, 0x1F, 0x19, 0x15, 0x13, 0x1F, 0x00, 0x00,
++};
++
++static void work_disp_setup_display_char_gen(void) {
++	int i;
++
++	disp_write_instruction(INST_CHAR_GEN);
++	for (i = 0; i < sizeof(char_gen_chars); i++) {
++		disp_write_char(char_gen_chars[i]);
++	}
++	disp_instruction_setpos(0, 0);
++}
++
++static int work_disp_setup_display(void) {
++	int result;
++
++	/* general MAX7301 init: TODO: move somewhere else! */
++	// set chip to normal operation mode
++	result = disp_spi_write(MAX6957_GCONF, MAX6957_GCONFVAL_OP);
++	if (result != 0) {
++		printk(KERN_ERR "Error: Failed to write " MODNAME " configuration!\n");
++		return -ENODEV;
++	}
++
++	// init unused ports TODO: elsewhere!
++	//disp_spi_write(MAX6957_PCONF_4T7, 0x55);
++	//disp_spi_write(MAX6957_PCONF_8T11, 0x55);
++
++	result = disp_spi_read(MAX6957_GCONF);
++	if (result != MAX6957_GCONFVAL_OP) {
++		printk(KERN_ERR "SPI Error: Expected 0x%02x but got 0x%02x (%d) - Display missing?\n",
++		       MAX6957_GCONFVAL_OP, result, result);
++		return -ENODEV;
++	}
++
++	/* config disp pins */
++	result = disp_spi_write(MAX6957_PCONF_8T11, MAX6957_PCONFVAL_3HOUT);
++	if (result != 0) {
++		printk(KERN_ERR "Error: Failed to configure display pins!\n");
++		return -ENODEV;
++	}
++
++	disp_write_en(0); // Initial display disable
++
++	disp_instruction_function(1, 1, 0); // Init: Function Set: 8Bit, 2-line, 5x7 dot
++	
++	// Prevent setting because already initialized in bootloader
++	// and writing 3 causes broken character display
++	//disp_write_char(3); // For VFD/itron displays: minimum brightness
++
++	disp_instruction_on(1, 0, 0);       // Display on, cursor off, no blink
++	disp_instruction_entry_mode(1, 0);  // Entry mode: Move cursor, don't shift display
++
++	work_disp_setup_display_char_gen();
++
++	return 0;
++}
++
++static void work_disp_write_booting(void) {
++	disp_instruction_clear();
++	disp_instruction_setpos(0, 13);
++	disp_write("WORK Microwave");
++	disp_instruction_setpos(1, 15);
++	disp_write("Booting ..");
++}
++
++#if 0
++static int is_open = 0;
++#endif
++static int filepos = 0;
++
++static struct miscdevice work_disp_misc_dev;
++
++static int fop_open(struct inode *in, struct file *f) {
++	if (MINOR(in->i_rdev) != work_disp_misc_dev.minor) {
++		return -ENOENT;
++	}
++#if 0
++	if (is_open) {
++		return -EBUSY;
++	}
++	is_open = 1;
++#endif
++	disp_instruction_setpos(0, 0);
++	filepos = 0;
++	return 0;
++}
++
++static int fop_close(struct inode *in, struct file *f) {
++	if (MINOR(in->i_rdev) != work_disp_misc_dev.minor) {
++		printk(KERN_WARNING "work-disp: fop_close(): Called on bad minor number.\n");
++		return -EBADF;
++	}
++#if 0
++	if (!is_open) {
++		printk(KERN_WARNING "work-disp: fop_close(): File not open on close()\n");
++		return -EBADF;
++	}
++	is_open = 0;
++#endif
++	return 0;
++}
++
++static ssize_t fop_read(struct file *f, char *buf, size_t n, loff_t *offset) {
++	char kbuf[DISP_SIZE];
++	ssize_t copy_size = 0;
++
++	if (filepos < 80) {
++		int line = (filepos >= 40) ? 1 : 0;
++		int column = filepos - (line * 40);
++
++		disp_instruction_setpos(line, column);
++		while (n && copy_size + filepos < 80) {
++			kbuf[copy_size] = disp_read_char();
++			copy_size++;
++			n--;
++		}
++	}
++
++	if (copy_to_user(buf, kbuf, copy_size) != 0) {
++		return -EFAULT;
++	}
++
++	filepos += copy_size;
++	return copy_size;
++}
++
++
++static ssize_t fop_write(struct file *f, const char __user *buf, size_t n, loff_t *offset) {
++	char kbuf[DISP_SIZE];
++	size_t copy_size = n;
++
++	if (copy_size > DISP_SIZE)
++		copy_size = DISP_SIZE;
++
++	if (copy_from_user (kbuf, buf, copy_size) != 0) {
++		return -EFAULT;
++	}
++
++	disp_write_mem(kbuf, n);
++	filepos += n;
++	return n;
++}
++
++static long fop_ioctl(struct file *f, unsigned int cmd, unsigned long arg) {
++	int result = 0;
++
++	switch (cmd) {
++		case WORK_DISP_IOCTL_CLEAR:
++			disp_instruction_clear();
++			filepos = 0;
++			break;
++		case WORK_DISP_IOCTL_HOME:
++			disp_instruction_home();
++			filepos = 0;
++			break;
++		case WORK_DISP_IOCTL_ENTRY_MODE:
++			disp_instruction_entry_mode(arg & WORK_DISP_ENTRY_INCREMENT,
++			                            arg & WORK_DISP_ENTRY_SHIFT);
++			break;
++		case WORK_DISP_IOCTL_DISPLAY_ON:
++			disp_instruction_on(arg & WORK_DISP_FEAT_DISP_ON,
++			                    arg & WORK_DISP_FEAT_CURSOR,
++			                    arg & WORK_DISP_FEAT_BLINK);
++			break;
++		case WORK_DISP_IOCTL_DISPLAY_FUNCTiON:
++			disp_instruction_function(arg & WORK_DISP_FUNC_EIGHTBITS,
++			                          arg & WORK_DISP_FUNC_TWOLINE,
++				                      arg & WORK_DISP_TENDOTS);
++			break;
++		default:
++			printk(KERN_ERR "Error: Invalid ioctl %u!\n", cmd);
++			result = -1;
++	}
++	return result;
++}
++
++static loff_t fop_llseek(struct file *f, loff_t offset, int whence) {
++	int line, column;
++
++	switch (whence) {
++		case SEEK_SET:
++			filepos = offset;
++			break;
++		case SEEK_CUR:
++			filepos += offset;
++			break;
++		case SEEK_END:
++			filepos = DISP_SIZE + offset;
++			break;
++	}
++	
++	line = (filepos >= 40) ? 1 : 0;
++	column = filepos - (line * 40);
++	disp_instruction_setpos(line, column);
++
++	return filepos;
++}
++
++static struct file_operations fops = {
++	.open = fop_open,
++	.release = fop_close,
++	.read = fop_read,
++	.write = fop_write,
++	.unlocked_ioctl = fop_ioctl,
++	.llseek = fop_llseek,
++};
++
++static struct miscdevice work_disp_misc_dev = {
++	.name = MODNAME,
++	.nodename = MODNAME,
++	.minor = MISC_DYNAMIC_MINOR,
++	.fops = &fops,
++	.mode = 0644,
++};
++
++static int work_disp_register_misc_dev(void) {
++	int result = misc_register(&work_disp_misc_dev);
++	if (result != 0) {
++		printk(KERN_WARNING "Failed to register misc device!\n");
++	}
++	return result;
++}
++
++
++
++
++
++
++/*
++ * Direct SPI Implementation
++ *
++ * To be done
++ */
++
++#ifdef CONFIG_WORK_DISP_SPI
++static struct device *sd;
++
++
++/** Reads and returns the given SPI register. This is the SPI-only implementation. */
++static u8 disp_spi_read(unsigned int reg) {
++	int result;
++
++	struct max7301 *ts = dev_get_drvdata(sd);
++
++	mutex_lock(&ts->lock);
++	result = max7301_spi_read(sd, reg);
++	mutex_unlock(&ts->lock);
++
++	return result;
++}
++
++
++/** Writes the value to the given SPI register. This is the SPI-only implementation. */
++static int disp_spi_write(unsigned int reg, unsigned int value) {
++	int result = 0;
++	struct max7301 *ts = dev_get_drvdata(sd);
++
++	mutex_lock(&ts->lock);
++	result = max7301_spi_write(sd, reg, value);
++	mutex_unlock(&ts->lock);
++
++
++	return result;
++}
++
++static int work_disp_probe(struct platform_device *pdev)
++{
++	int result;
++
++	// TODO: find device by name instead of modifying upstream's max7301.c?
++	sd = max7301_get_dev();
++	if (!sd) {
++		printk(KERN_WARNING "work_disp: no spi device found.\n");
++		return -EPROBE_DEFER;
++	}
++
++	result = work_disp_setup_display();
++	if (result) return result;
++
++	work_disp_write_booting();
++
++	result = work_disp_register_misc_dev();
++	if (result != 0) return result;
++	
++	printk(KERN_INFO "WORK display driver loaded\n");
++
++	return 0;
++}
++
++static int work_disp_remove(struct platform_device *pdev)
++{
++	//disp_instruction_on(0, 0, 0);       // Display off (cursor off, no blink)
++	misc_deregister(&work_disp_misc_dev);
++	printk(KERN_INFO "WORK display driver unloaded\n");
++	return 0;
++}
++
++static const struct of_device_id work_disp_match[] = {
++        { .compatible = "work,disp" },
++        { }
++};
++MODULE_DEVICE_TABLE(of, work_disp_match);
++
++static struct platform_driver work_disp_driver = {
++	.driver	= {
++		.name = MODNAME,
++		.owner = THIS_MODULE,
++		.of_match_table = of_match_ptr(work_disp_match),
++	},
++	.probe	= work_disp_probe,
++	.remove	= work_disp_remove,
++};
++
++module_platform_driver(work_disp_driver);
++
++#endif // CONFIG_WORK_DISP_SPI
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++/*
++ * SPI over I2C Implementation
++ *
++ * In this configuration, all SPI data is transferred via I2C to an Xmega chip which forwards
++ * the data to the display device via SPI. Thus we tunnel the SPI via I2C.
++ */
++#ifdef CONFIG_WORK_DISP_SPI_OVER_I2C
++
++#define WORK_DISP_DEFAULT_I2C_BUS             4
++#define WORK_DISP_I2C_ADDR                 0x31
++
++#define WORK_DISP_I2C_VERSION              0xF1        // 8 byte
++#define WORK_DISP_I2C_VERIFY_ALIVE_READ    0xA4
++#define WORK_DISP_I2C_VERIFY_ALIVE_WRITE   0xA5
++#define WORK_DISP_I2C_SPI_SEND             0x02
++#define WORK_DISP_I2C_SPI_READ             0x03
++
++#define WORK_DISP_I2C_READ_BIT             0x80
++#define WORK_DISP_I2C_SPI_PROCESS          0xFF
++
++#define WORK_DISP_GET_LEN(WORD) (WORD & 0xFF)          // byte 0
++#define WORK_DISP_GET_VAL(WORD) ((WORD >> 8) & 0xff)   // byte 1
++
++/*
++ * we have to keep a static variable here since i2c attach_adapter
++ * callback cannot pass a private data.
++ */
++static struct i2c_client *static_client = NULL;
++static struct i2c_client *mod_client = NULL;
++
++static int i2c_bus = WORK_DISP_DEFAULT_I2C_BUS;
++module_param(i2c_bus, int, 0644);
++MODULE_PARM_DESC(i2c_bus, "The i2c bus number number, on which the chip is connected (e.g. 4 for /dev/i2c-4)");
++
++enum chips { work_xmega };
++
++static struct i2c_device_id work_disp_i2c_idtable[] = {
++	{ "work-disp-xmega", work_xmega },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, work_disp_i2c_idtable);
++
++
++static struct i2c_board_info __initdata work_disp_i2c_board_info[] = {
++	{
++		I2C_BOARD_INFO("work-disp-xmega", WORK_DISP_I2C_ADDR),
++		.platform_data = NULL,   // pointer to custom data
++	},
++};
++
++
++
++/** Reads and returns the given SPI register. This is the I2C-over-SPI implementation. */
++static u8 disp_spi_read(unsigned int reg) {
++	int result, counter = 0;
++
++	u16 data = (1 * sizeof(u8)) << 8 | (reg | WORK_DISP_I2C_READ_BIT);
++	result = i2c_smbus_write_word_data(mod_client, WORK_DISP_I2C_SPI_SEND, cpu_to_be16(data));
++	if (result != 0) {
++		printk(KERN_ERR "Error: Failed to write SPI reg 0x%x via I2c 0x%x\n",
++		       (0x80|reg), WORK_DISP_I2C_SPI_SEND);
++		return result;
++	}
++
++	do {
++		if (counter++ >= 20) {
++			printk(KERN_ERR "Error: SPI read timeout! Read %dx 0xff...\n", counter);
++			return -EPROTO;
++		}
++		result = i2c_smbus_read_word_data(mod_client, WORK_DISP_I2C_SPI_READ);
++		if (result < 0) {
++			printk(KERN_ERR "Error: Failed to read 0x%x from I2C bus!\n", WORK_DISP_I2C_SPI_READ);
++			continue;
++		}
++	} while (WORK_DISP_GET_LEN(be16_to_cpu(result)) == WORK_DISP_I2C_SPI_PROCESS);
++
++	if (WORK_DISP_GET_LEN(be16_to_cpu(result)) == 0) {
++		printk(KERN_ERR "Error: 0x%x returns a read-length of zero! (raw=0x%x)\n",
++		       reg, be16_to_cpu(result));
++	}
++	return WORK_DISP_GET_VAL(be16_to_cpu(result));
++}
++
++/** Writes the value to the given SPI register. This is the I2C-over-SPI implementation. */
++static int disp_spi_write(unsigned int reg, unsigned int value) {
++	u8 data[3];
++	data[0] = 2 * sizeof(u8);
++	data[1] = (reg   & (~WORK_DISP_I2C_READ_BIT));
++	data[2] = (value & 0xFF);
++	return i2c_smbus_write_i2c_block_data(mod_client, WORK_DISP_I2C_SPI_SEND, sizeof(data), data);
++}
++
++
++static int work_disp_i2c_probe(struct i2c_client *client,
++                               const struct i2c_device_id *id) {
++	int result;
++
++	if (id != NULL && id->driver_data == work_xmega) {
++		u8 xmega_version[9];
++#if 0
++		u8 rand;
++		get_random_bytes(&rand, 1);
++		result = i2c_smbus_write_byte_data(client, WORK_DISP_I2C_VERIFY_ALIVE_WRITE, rand);
++		if (result < 0) return result;
++
++		result = i2c_smbus_read_byte_data(client, WORK_DISP_I2C_VERIFY_ALIVE_READ);
++		if (result < 0) return result;
++
++		if (rand != result) {
++			printk(KERN_ERR "Verify-alive register doesnot work! 0x%x vs 0x%x (%d)\n", rand, result, result);
++			return -ENOTSUPP;
++		}
++#endif
++
++		// i2c_smbus_read_block_data does not work
++		result = i2c_smbus_read_i2c_block_data(client, WORK_DISP_I2C_VERSION, 8, xmega_version);
++		if (result < 0) {
++			printk(KERN_ERR "Error: Failed to read i2c translator version! Aborting..\n");
++			return result;
++		}
++		xmega_version[8] = '\0';
++		if (xmega_version[0] != 'A' || xmega_version[1] != 'X') {
++			printk(KERN_ERR "Error: Cannot verify version of i2c translatior: '%s' Aborting..\n", xmega_version);
++			return -ENODEV;
++		}
++		printk(KERN_NOTICE "Connected to '%s'.\n", xmega_version);
++	}
++	else {
++		printk(KERN_ERR "Error: Detected unknown device '%s'! Aborting..\n", id->name);
++		return -ENODEV;
++	}
++
++	// now the display is ready for being written
++	mod_client = client;
++
++	result = work_disp_setup_display();
++	if (result != 0) return result;
++
++	work_disp_write_booting();
++
++	result = work_disp_register_misc_dev();
++	if (result != 0) return result;
++
++	printk(KERN_ERR "WORK display driver loaded\n");
++
++	return 0;
++}
++
++static int work_disp_i2c_remove(struct i2c_client *client) {
++	disp_instruction_on(0, 0, 0);       // Display off (cursor off, no blink)
++	misc_deregister(&work_disp_misc_dev);
++	mod_client = NULL;
++	return 0;
++}
++
++static struct i2c_driver work_disp_i2c_driver = {
++	.driver = {
++		.name   = MODNAME,
++		.owner  = THIS_MODULE,
++	},
++	.id_table   = work_disp_i2c_idtable,
++	.probe      = work_disp_i2c_probe,
++	.remove     = work_disp_i2c_remove,
++};
++
++
++
++static int __init work_disp_i2c_init(void) {
++	struct i2c_adapter *adapter;
++	struct i2c_client *client;
++	int result;
++
++	result = i2c_add_driver(&work_disp_i2c_driver);
++	if (result != 0) {
++		printk(KERN_ERR "Error: Failed to register " MODNAME " i2c driver!\n");
++		return result;
++	}
++
++	adapter = i2c_get_adapter(i2c_bus);
++	if (!adapter) {
++		printk(KERN_ERR "Error: Failed to get i2c adapter %d!\n", i2c_bus);
++		return -ENODEV;
++	}
++	printk(KERN_NOTICE "Connected " MODNAME " to adapter '%s'.\n", adapter->name);
++
++	client = i2c_new_device(adapter, work_disp_i2c_board_info);
++	i2c_put_adapter(adapter);
++	if (!client) {
++		printk(KERN_ERR "Error: Failed to register " MODNAME " i2c device!\n");
++		return -ENODEV;
++	}
++	printk(KERN_NOTICE "Registered " MODNAME " i2c client '%s'.\n", client->name);
++
++	// not very nice, but is needed for cleanup
++	static_client = client;
++
++	printk(KERN_NOTICE "Module " MODNAME " loaded.\n");
++
++	return 0;
++}
++
++module_init(work_disp_i2c_init);
++
++static void __exit work_disp_i2c_exit(void) {
++	if (static_client != NULL) {
++		i2c_unregister_device(static_client);
++		static_client = NULL;
++	}
++	i2c_del_driver(&work_disp_i2c_driver);
++
++	printk(KERN_NOTICE "Module " MODNAME " unloaded.\n");
++}
++
++module_exit(work_disp_i2c_exit);
++
++#endif // CONFIG_WORK_DISP_SPI_OVER_I2C
++
++
++
++
++
++MODULE_DESCRIPTION("Driver for display on WORK Frontpanel");
++MODULE_AUTHOR("Roland Stigge <roland.stigge@work-microwave.de>");
++MODULE_LICENSE("GPL");
+diff --git a/include/linux/spi/max7301.h b/include/linux/spi/max7301.h
+index 433c20e2f46e..be23d57decda 100644
+--- a/include/linux/spi/max7301.h
++++ b/include/linux/spi/max7301.h
+@@ -29,6 +29,13 @@ struct max7301_platform_data {
+ 	 * ports of the controller are not used, too.
+ 	 */
+ 	u32		input_pullup_active;
++
++	void		*context;	/* param to setup/teardown */
++
++	int		(*setup)(unsigned gpio, unsigned ngpio,
++				void *context);
++	int		(*teardown)(unsigned gpio, unsigned ngpio,
++				void *context);
+ };
+ 
+ extern int __max730x_remove(struct device *dev);
+-- 
+2.25.1
+
