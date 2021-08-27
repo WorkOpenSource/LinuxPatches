@@ -1,0 +1,37 @@
+From 335a1ae97faeb3f109adf97fa9b0c555e50cffdd Mon Sep 17 00:00:00 2001
+From: Johannes Agricola <johannes.agricola@work-microwave.com>
+Date: Fri, 27 Aug 2021 11:17:19 +0200
+Subject: [PATCH 14/14] This patch fixes the UBIFS recovery after a hard
+ powercycle:
+
+    # ubiattach -m 2 -d 1
+      [...]
+    # mount /var/lib/work/
+    UBIFS (ubi1:0): Mounting in unauthenticated mode
+    UBIFS (ubi1:0): background thread "ubifs_bgt1_0" started, PID 73
+    UBIFS (ubi1:0): recovery needed
+    UBIFS (ubi1:0): background thread "ubifs_bgt1_0" stops
+    mount: /var/lib/work: mount(2) system call failed: No such file or directory.
+    #
+---
+ fs/ubifs/orphan.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/ubifs/orphan.c b/fs/ubifs/orphan.c
+index b0117878b3a0..186e8ae3ea35 100644
+--- a/fs/ubifs/orphan.c
++++ b/fs/ubifs/orphan.c
+@@ -695,8 +695,9 @@ static int do_kill_orphans(struct ubifs_info *c, struct ubifs_scan_leb *sleb,
+ 
+ 			ino_key_init(c, &key1, inum);
+ 			err = ubifs_tnc_lookup(c, &key1, ino);
++			/* WORK's modification: removing 'goto out_free' to fix UBIFS recovery */
+ 			if (err && err != -ENOENT)
+-				goto out_free;
++				continue;
+ 
+ 			/*
+ 			 * Check whether an inode can really get deleted.
+-- 
+2.25.1
+
