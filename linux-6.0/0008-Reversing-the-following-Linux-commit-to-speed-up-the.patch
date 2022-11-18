@@ -1,0 +1,94 @@
+From 81933fd16622f2ab7ba2243ab50e2265c816b5b8 Mon Sep 17 00:00:00 2001
+From: Johannes Agricola <johannes.agricola@work-microwave.com>
+Date: Fri, 27 Aug 2021 11:14:05 +0200
+Subject: [PATCH 08/14] Reversing the following Linux commit to speed up the
+ device
+
+The following commit decreasis the packet transfer by 45% and increases
+it by the same percentage when removing it from the kernel code.
+
+commit 2e051552df69af6d134c2592d0d6f1ac80f01190
+Author: Thomas Gleixner <tglx@linutronix.de>
+Date:   Tue Jun 20 01:37:23 2017 +0200
+
+    genirq: Move initial affinity setup to irq_startup()
+
+    The startup vs. setaffinity ordering of interrupts depends on the
+    IRQF_NOAUTOEN flag. Chained interrupts are not getting any affinity
+    assignment at all.
+
+    A regular interrupt is started up and then the affinity is set. A
+    IRQF_NOAUTOEN marked interrupt is not started up, but the affinity is set
+    nevertheless.
+
+    Move the affinity setup to startup_irq() so the ordering is always the same
+    and chained interrupts get the proper default affinity assigned as well.
+
+    Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+    Cc: Jens Axboe <axboe@kernel.dk>
+    Cc: Marc Zyngier <marc.zyngier@arm.com>
+    Cc: Michael Ellerman <mpe@ellerman.id.au>
+    Cc: Keith Busch <keith.busch@intel.com>
+    Cc: Peter Zijlstra <peterz@infradead.org>
+    Cc: Christoph Hellwig <hch@lst.de>
+    Link: http://lkml.kernel.org/r/20170619235445.020534783@linutronix.de
+---
+ kernel/irq/chip.c   |  5 -----
+ kernel/irq/manage.c | 15 +++++++++------
+ 2 files changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/kernel/irq/chip.c b/kernel/irq/chip.c
+index 8ac37e8e738a..dfb41be7a72d 100644
+--- a/kernel/irq/chip.c
++++ b/kernel/irq/chip.c
+@@ -264,14 +264,9 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
+ 	} else {
+ 		switch (__irq_startup_managed(desc, aff, force)) {
+ 		case IRQ_STARTUP_NORMAL:
+-			if (d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP)
+-				irq_setup_affinity(desc);
+ 			ret = __irq_startup(desc);
+-			if (!(d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP))
+-				irq_setup_affinity(desc);
+ 			break;
+ 		case IRQ_STARTUP_MANAGED:
+-			irq_do_set_affinity(d, aff, false);
+ 			ret = __irq_startup(desc);
+ 			break;
+ 		case IRQ_STARTUP_ABORT:
+diff --git a/kernel/irq/manage.c b/kernel/irq/manage.c
+index 40fe7806cc8c..dfc819be10b6 100644
+--- a/kernel/irq/manage.c
++++ b/kernel/irq/manage.c
+@@ -1758,12 +1758,6 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
+ 		if (new->flags & IRQF_ONESHOT)
+ 			desc->istate |= IRQS_ONESHOT;
+ 
+-		/* Exclude IRQ from balancing if requested */
+-		if (new->flags & IRQF_NOBALANCING) {
+-			irq_settings_set_no_balancing(desc);
+-			irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
+-		}
+-
+ 		if (!(new->flags & IRQF_NO_AUTOEN) &&
+ 		    irq_settings_can_autoenable(desc)) {
+ 			irq_startup(desc, IRQ_RESEND, IRQ_START_COND);
+@@ -1779,6 +1773,15 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
+ 			desc->depth = 1;
+ 		}
+ 
++		/* Exclude IRQ from balancing if requested */
++		if (new->flags & IRQF_NOBALANCING) {
++			irq_settings_set_no_balancing(desc);
++			irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
++		}
++
++		/* Set default affinity mask once everything is setup */
++		irq_setup_affinity(desc);
++
+ 	} else if (new->flags & IRQF_TRIGGER_MASK) {
+ 		unsigned int nmsk = new->flags & IRQF_TRIGGER_MASK;
+ 		unsigned int omsk = irqd_get_trigger_type(&desc->irq_data);
+-- 
+2.25.1
+

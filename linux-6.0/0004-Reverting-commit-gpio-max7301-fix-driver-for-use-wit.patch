@@ -1,0 +1,76 @@
+From 2c78a2d29efa03e3c85f26c5db974d96023178e2 Mon Sep 17 00:00:00 2001
+From: Johannes Agricola <johannes.agricola@work-microwave.com>
+Date: Fri, 27 Aug 2021 11:12:12 +0200
+Subject: [PATCH 04/14] Reverting commit 'gpio: max7301: fix driver for use
+ with CONFIG_VMAP_STACK' to make fronpanel display (work-disp.c) work.
+
+When reverting the patch, the correct answer (0x8401) is returned by SPI:
+
+    max7301_spi_write: word to write=0x401
+    max7301_spi_read: word to write=0x8400
+    max7301_spi_read: read word=0x8401 ret=0
+
+Without reverting this patch, we receive faultly 0x8400:
+
+    max7301_spi_write: word to write=0x401
+    max7301_spi_read: word to write=0x8400
+    max7301_spi_read: read word=0x8400 ret=0
+    SPI Error: Expected 0x01 but got 0x00 (0) - Display missing?
+
+commit 07cfa7ac9e52d3250061e3cb91acfecb905afefb
+Author: Christophe Leroy <christophe.leroy@c-s.fr>
+Date:   Fri Dec 7 13:07:55 2018 +0000
+
+    gpio: max7301: fix driver for use with CONFIG_VMAP_STACK
+
+    commit abf221d2f51b8ce7b9959a8953f880a8b0a1400d upstream.
+
+    spi_read() and spi_write() require DMA-safe memory. When
+    CONFIG_VMAP_STACK is selected, those functions cannot be used
+    with buffers on stack.
+
+    This patch replaces calls to spi_read() and spi_write() by
+    spi_write_then_read() which doesn't require DMA-safe buffers.
+
+    Fixes: 0c36ec314735 ("gpio: gpio driver for max7301 SPI GPIO expander")
+    Cc: <stable@vger.kernel.org>
+    Signed-off-by: Christophe Leroy <christophe.leroy@c-s.fr>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/gpio/gpio-max7301.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpio/gpio-max7301.c b/drivers/gpio/gpio-max7301.c
+index 11813f41d460..9f791175fb8f 100644
+--- a/drivers/gpio/gpio-max7301.c
++++ b/drivers/gpio/gpio-max7301.c
+@@ -22,7 +22,7 @@ static int max7301_spi_write(struct device *dev, unsigned int reg,
+ 	struct spi_device *spi = to_spi_device(dev);
+ 	u16 word = ((reg & 0x7F) << 8) | (val & 0xFF);
+ 
+-	return spi_write_then_read(spi, &word, sizeof(word), NULL, 0);
++	return spi_write(spi, (const u8 *)&word, sizeof(word));
+ }
+ 
+ /* A read from the MAX7301 means two transfers; here, one message each */
+@@ -34,8 +34,14 @@ static int max7301_spi_read(struct device *dev, unsigned int reg)
+ 	struct spi_device *spi = to_spi_device(dev);
+ 
+ 	word = 0x8000 | (reg << 8);
+-	ret = spi_write_then_read(spi, &word, sizeof(word), &word,
+-				  sizeof(word));
++	ret = spi_write(spi, (const u8 *)&word, sizeof(word));
++	if (ret)
++		return ret;
++	/*
++	 * This relies on the fact, that a transfer with NULL tx_buf shifts out
++	 * zero bytes (=NOOP for MAX7301)
++	 */
++	ret = spi_read(spi, (u8 *)&word, sizeof(word));
+ 	if (ret)
+ 		return ret;
+ 	return word & 0xff;
+-- 
+2.25.1
+

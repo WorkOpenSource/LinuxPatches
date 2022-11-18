@@ -1,0 +1,43 @@
+From 16eb5b9974f216a962762a63197dfce1dd6f7e39 Mon Sep 17 00:00:00 2001
+From: Johannes Agricola <johannes.agricola@work-microwave.com>
+Date: Fri, 27 Aug 2021 11:12:12 +0200
+Subject: [PATCH 06/14] Allowing to address the spidev driver generically by
+ the devicetree
+
+With this patch we can link the device in the devicetree by the compatible
+string 'spidev' - otherwise we would have to link it by a spi-controller
+which is not built in our device.
+
+Since we already use the 'spidev' in our devicetree, we have to find a way
+to keep it working - best without any misleading warnings. Thus we decided
+to remove the 'buggy DT: spidev listed directly in DT' from the code.
+---
+ drivers/spi/spidev.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/spi/spidev.c b/drivers/spi/spidev.c
+index b2775d82d2d7..f4e2e43a1fbe 100644
+--- a/drivers/spi/spidev.c
++++ b/drivers/spi/spidev.c
+@@ -701,14 +701,14 @@ MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
+  */
+ static int spidev_of_check(struct device *dev)
+ {
+-	if (device_property_match_string(dev, "compatible", "spidev") < 0)
+-		return 0;
++	/* Removed 'buggy DT: spidev listed directly in DT' warning by WORK */
++	/* to support existing devicetree! */
+ 
+-	dev_err(dev, "spidev listed directly in DT is not supported\n");
+-	return -EINVAL;
++	return 0;
+ }
+ 
+ static const struct of_device_id spidev_dt_ids[] = {
++	{ .compatible = "spidev", .data = &spidev_of_check },
+ 	{ .compatible = "rohm,dh2228fv", .data = &spidev_of_check },
+ 	{ .compatible = "lineartechnology,ltc2488", .data = &spidev_of_check },
+ 	{ .compatible = "semtech,sx1301", .data = &spidev_of_check },
+-- 
+2.25.1
+
