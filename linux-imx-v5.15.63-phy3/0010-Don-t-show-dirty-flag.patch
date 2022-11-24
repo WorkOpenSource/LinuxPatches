@@ -1,0 +1,40 @@
+From e057298e0d87fbb65ea81e287adaf8ba0553a712 Mon Sep 17 00:00:00 2001
+From: Johannes Agricola <johannes.agricola@work-microwave.com>
+Date: Fri, 27 Aug 2021 11:17:18 +0200
+Subject: [PATCH 10/15] Don't show dirty flag
+
+Since we use the official Linux tarball and patch it with our changes, we have
+a dirty Linux by definition. Since this is not a problem, we remove this flag
+from the kernel version.
+
+This patch is working with versions before Linux v4.19.82...
+---
+ scripts/setlocalversion | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/scripts/setlocalversion b/scripts/setlocalversion
+index 6b54e46a0f12..5d09f357e230 100755
+--- a/scripts/setlocalversion
++++ b/scripts/setlocalversion
+@@ -77,12 +77,12 @@ scm_version()
+ 		# it fails. Note that git-diff-index does not refresh the
+ 		# index, so it may give misleading results. See
+ 		# git-update-index(1), git-diff-index(1), and git-status(1).
+-		if {
+-			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
+-			git diff-index --name-only HEAD
+-		} | read dummy; then
+-			printf '%s' -dirty
+-		fi
++#		if {
++#			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
++#			git diff-index --name-only HEAD
++#		} | read dummy; then
++#			printf '%s' -dirty
++#		fi
+ 	fi
+ }
+ 
+-- 
+2.25.1
+
