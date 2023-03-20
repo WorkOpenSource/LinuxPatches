@@ -1,0 +1,51 @@
+From 8dd051287d4ea27219c7fe673e4997e633fbf402 Mon Sep 17 00:00:00 2001
+From: Johannes Agricola <johannes.agricola@work-microwave.com>
+Date: Fri, 27 Aug 2021 11:12:12 +0200
+Subject: [PATCH 06/15] Allowing to address the spidev driver generically by
+ the devicetree
+
+With this patch we can link the device in the devicetree by the compatible
+string 'spidev' - otherwise we would have to link it by a spi-controller
+which is not built in our device.
+
+Since we already use the 'spidev' in our devicetree, we have to find a way
+to keep it working - best without any misleading warnings. Thus we decided
+to remove the 'buggy DT: spidev listed directly in DT' from the code.
+---
+ drivers/spi/spidev.c | 13 +++----------
+ 1 file changed, 3 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/spi/spidev.c b/drivers/spi/spidev.c
+index a6eaaa17266c..daaea37f9738 100644
+--- a/drivers/spi/spidev.c
++++ b/drivers/spi/spidev.c
+@@ -688,6 +688,7 @@ MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
+ 
+ #ifdef CONFIG_OF
+ static const struct of_device_id spidev_dt_ids[] = {
++	{ .compatible = "spidev" },
+ 	{ .compatible = "rohm,dh2228fv" },
+ 	{ .compatible = "lineartechnology,ltc2488" },
+ 	{ .compatible = "semtech,sx1301" },
+@@ -748,16 +749,8 @@ static int spidev_probe(struct spi_device *spi)
+ 	int			status;
+ 	unsigned long		minor;
+ 
+-	/*
+-	 * spidev should never be referenced in DT without a specific
+-	 * compatible string, it is a Linux implementation thing
+-	 * rather than a description of the hardware.
+-	 */
+-	if (spi->dev.of_node && !of_match_device(spidev_dt_ids, &spi->dev)) {
+-		dev_err(&spi->dev, "buggy DT: spidev listed directly in DT\n");
+-		WARN_ON(spi->dev.of_node &&
+-			!of_match_device(spidev_dt_ids, &spi->dev));
+-	}
++	/* Removed 'buggy DT: spidev listed directly in DT' warning by WORK */
++	/* to support existing devicetree! */
+ 
+ 	spidev_probe_acpi(spi);
+ 
+-- 
+2.25.1
+
