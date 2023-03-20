@@ -1,4 +1,4 @@
-From b53fd14746b234f8077e8c6aa508de39cbd0d70b Mon Sep 17 00:00:00 2001
+From 2582c96b687a3ee1dfb4bad5de5cf4252f1eb3f4 Mon Sep 17 00:00:00 2001
 From: Johannes Agricola <johannes.agricola@work-microwave.com>
 Date: Fri, 27 Aug 2021 11:17:18 +0200
 Subject: [PATCH 11/15] This patch reduces the possible press-interval for the

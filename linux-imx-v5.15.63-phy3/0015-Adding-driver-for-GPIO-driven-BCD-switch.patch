@@ -1,4 +1,4 @@
-From f429636385bc22818f5040c6b6109535210b6ac0 Mon Sep 17 00:00:00 2001
+From b37c1cd2a5f50091f9a92d01eeb0175df7cddc60 Mon Sep 17 00:00:00 2001
 From: Johannes Agricola <johannes.agricola@work-microwave.com>
 Date: Thu, 24 Nov 2022 21:58:36 +0100
 Subject: [PATCH 15/15] Adding driver for GPIO driven BCD switch

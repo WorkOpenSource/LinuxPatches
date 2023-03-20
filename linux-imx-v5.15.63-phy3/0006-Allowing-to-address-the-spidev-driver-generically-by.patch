@@ -1,4 +1,4 @@
-From c242a218829db5bd5855608fc737d86ae24c489f Mon Sep 17 00:00:00 2001
+From 8dd051287d4ea27219c7fe673e4997e633fbf402 Mon Sep 17 00:00:00 2001
 From: Johannes Agricola <johannes.agricola@work-microwave.com>
 Date: Fri, 27 Aug 2021 11:12:12 +0200
 Subject: [PATCH 06/15] Allowing to address the spidev driver generically by

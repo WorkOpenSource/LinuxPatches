@@ -1,4 +1,4 @@
-From 34dc3b501d4c1034a7ce34a2004b0afa585a829d Mon Sep 17 00:00:00 2001
+From 13a8742a72b65f5f5502a86dc73c20d5e7813340 Mon Sep 17 00:00:00 2001
 From: Johannes Agricola <johannes.agricola@work-microwave.com>
 Date: Fri, 27 Aug 2021 11:17:19 +0200
 Subject: [PATCH 13/15] Revert of commit 'gianfar: simplify FCS handling and

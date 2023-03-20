@@ -1,4 +1,4 @@
-From 68307660a3ef094369a2a9771832f358c18a5bc7 Mon Sep 17 00:00:00 2001
+From d4dd4209b84cf1ebdd90058a0c538f0a21d14bb6 Mon Sep 17 00:00:00 2001
 From: Johannes Agricola <johannes.agricola@work-microwave.com>
 Date: Fri, 27 Aug 2021 11:17:18 +0200
 Subject: [PATCH 12/15] Currently the ACPI creates two power-button devices.

@@ -1,4 +1,4 @@
-From 01f279e0057b7bd48087a5bc56ecc24e7a0cf0b7 Mon Sep 17 00:00:00 2001
+From 13c7425c6ef1538163257f945f485bf653c028d3 Mon Sep 17 00:00:00 2001
 From: Johannes Agricola <johannes.agricola@work-microwave.com>
 Date: Thu, 24 Nov 2022 21:42:22 +0100
 Subject: [PATCH 05/15] Adding support for the frontpanel
@@ -722,7 +722,7 @@ index 1919af6e2b49..a78e1553b96f 100644
  obj-y				+= ti-st/
 diff --git a/drivers/misc/work/Kconfig b/drivers/misc/work/Kconfig
 new file mode 100644
-index 000000000000..67b11a4eb588
+index 000000000000..ca85ad9a1073
 --- /dev/null
 +++ b/drivers/misc/work/Kconfig
 @@ -0,0 +1,45 @@
@@ -732,7 +732,7 @@ index 000000000000..67b11a4eb588
 +
 +menuconfig WORK_DRIVERS
 +	bool "Additional device drivers for WORK92105 board"
-+	---help---
++	help
 +	  Say Y here to get to see options for device drivers for miscellaneous
 +	  WORK Microwave modules from various categories. This option alone
 +	  does not add any kernel code.
